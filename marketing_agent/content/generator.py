@@ -1,0 +1,122 @@
+"""Content generation entry point. Tries Claude when keyed, falls back to templates."""
+from __future__ import annotations
+import json
+import os
+import re
+from typing import Optional
+
+from marketing_agent.types import GenerationMode, Platform, Post, Project
+from marketing_agent.content import templates
+
+
+def generate_posts(
+    project: Project,
+    platforms: list[Platform],
+    mode: GenerationMode = GenerationMode.HYBRID,
+    *,
+    subreddit: Optional[str] = None,
+) -> list[Post]:
+    """Generate one Post per platform.
+
+    HYBRID (default): try Claude when ANTHROPIC_API_KEY is set; on any failure
+    or when key is missing, fall back to deterministic templates.
+    """
+    out: list[Post] = []
+    for p in platforms:
+        if mode == GenerationMode.TEMPLATE or not os.getenv("ANTHROPIC_API_KEY"):
+            out.append(templates.render(p, project, subreddit=subreddit))
+            continue
+
+        try:
+            out.append(_generate_with_llm(project, p, subreddit=subreddit))
+        except Exception:
+            if mode == GenerationMode.LLM:
+                raise  # caller asked for LLM-only; don't silently downgrade
+            out.append(templates.render(p, project, subreddit=subreddit))
+    return out
+
+
+def _generate_with_llm(
+    project: Project,
+    platform: Platform,
+    *,
+    subreddit: Optional[str] = None,
+) -> Post:
+    """Use Claude to write platform-specific content."""
+    from anthropic import Anthropic
+
+    client = Anthropic()
+    system_prompt = _system_for(platform)
+    user_prompt = _user_prompt_for(project, platform, subreddit=subreddit)
+
+    resp = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=600,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    text = "".join(b.text for b in resp.content if b.type == "text").strip()
+    text = text.strip('"').strip("'").strip()
+
+    return _post_for(platform, text, project, subreddit=subreddit).with_count()
+
+
+def _system_for(platform: Platform) -> str:
+    """Per-platform voice / constraints."""
+    base = (
+        "You are writing on behalf of an indie OSS developer who is building "
+        "in public. Voice: technical, honest, no marketing fluff, no hype "
+        "words like 'revolutionary' or 'cutting-edge'. Show, don't tell."
+    )
+    extras = {
+        Platform.X: (
+            " Output a single tweet, max 270 chars (we'll append a URL). "
+            "1 emoji max at start. No hashtags. End on a concrete observation, "
+            "not a CTA."
+        ),
+        Platform.REDDIT: (
+            " Output a Reddit post body, 4-8 short paragraphs. Open with what "
+            "you built and why. Include code or numbers if relevant. End with "
+            "an honest ask for feedback."
+        ),
+        Platform.LINKEDIN: (
+            " Output a LinkedIn post, 600-1000 chars. More polished than X but "
+            "not corporate. Lead with the problem or the journey."
+        ),
+        Platform.DEV_TO: (
+            " Output a DEV.to article, markdown formatted, ~600-1500 words. "
+            "Use H2 sections. Include a code block if relevant."
+        ),
+    }
+    return base + extras.get(platform, "")
+
+
+def _user_prompt_for(
+    project: Project,
+    platform: Platform,
+    *,
+    subreddit: Optional[str] = None,
+) -> str:
+    parts = [f"Project: {project.name}", f"Tagline: {project.tagline}"]
+    if project.description:
+        parts.append(f"Description:\n{project.description}")
+    if project.recent_changes:
+        parts.append("Recent changes:\n" + "\n".join(f"- {c}" for c in project.recent_changes[:10]))
+    if project.target_audience:
+        parts.append(f"Target audience: {project.target_audience}")
+    if project.tags:
+        parts.append(f"Tags: {', '.join(project.tags)}")
+    if subreddit and platform == Platform.REDDIT:
+        parts.append(f"Subreddit: r/{subreddit}")
+
+    parts.append(f"\nWrite the {platform.value} post now. Output ONLY the post text, no preamble.")
+    return "\n\n".join(parts)
+
+
+def _post_for(platform: Platform, text: str, project: Project,
+               *, subreddit: Optional[str] = None) -> Post:
+    if platform == Platform.REDDIT:
+        title = f"[Project] {project.name}: {project.tagline}"
+        return Post(platform=platform, title=title, body=text,
+                    target=subreddit or "MachineLearning")
+    return Post(platform=platform, body=text)

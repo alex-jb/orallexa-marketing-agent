@@ -1,0 +1,7 @@
+pydantic>=2.9,<3
+tweepy>=4.14
+anthropic>=0.40
+python-dotenv>=1.0
+praw>=7.7
+rich>=13.9
+pytest>=8.3
