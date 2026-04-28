@@ -19,6 +19,9 @@ class Platform(str, Enum):
     HACKER_NEWS = "hacker_news"      # post URL only, manual submit
     SUBSTACK = "substack"            # via RSS / email
     DEV_TO = "dev_to"                # API
+    BLUESKY = "bluesky"              # AT Protocol — fastest-growing X alt 2026
+    MASTODON = "mastodon"            # ActivityPub — open Twitter alt
+    THREADS = "threads"              # Meta — Phase 2
     ZHIHU = "zhihu"                  # 知乎 — semi-auto via browser
     XIAOHONGSHU = "xiaohongshu"      # 小红书 — semi-auto
 

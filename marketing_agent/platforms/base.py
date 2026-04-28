@@ -38,12 +38,16 @@ def get_adapter(platform: Platform) -> PlatformAdapter:
     from marketing_agent.platforms.reddit import RedditAdapter
     from marketing_agent.platforms.linkedin import LinkedInAdapter
     from marketing_agent.platforms.dev_to import DevToAdapter
+    from marketing_agent.platforms.bluesky import BlueskyAdapter
+    from marketing_agent.platforms.mastodon import MastodonAdapter
 
     mapping = {
         Platform.X: XAdapter,
         Platform.REDDIT: RedditAdapter,
         Platform.LINKEDIN: LinkedInAdapter,
         Platform.DEV_TO: DevToAdapter,
+        Platform.BLUESKY: BlueskyAdapter,
+        Platform.MASTODON: MastodonAdapter,
     }
     cls = mapping.get(platform)
     if cls is None:
