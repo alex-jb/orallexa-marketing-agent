@@ -1,0 +1,69 @@
+name: Daily auto-post
+
+on:
+  # Runs every day at 14:00 UTC = 10:00 AM EDT (good engagement window).
+  schedule:
+    - cron: "0 14 * * *"
+  # Allow manual triggering from the Actions tab for testing.
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Target repo (owner/name)"
+        required: true
+        default: "alex-jb/orallexa-ai-trading-agent"
+      dry_run:
+        description: "Dry run only (no posting)?"
+        required: false
+        default: "false"
+      mode:
+        description: "Generation mode (template / llm / hybrid)"
+        required: false
+        default: "hybrid"
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily post
+        env:
+          # Anthropic — for LLM-mode content generation
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # X (Twitter) — for posting
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+
+          # Reddit — for posting (optional; will be skipped if blank)
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+
+          # GitHub auth so `gh api` can fetch commits from public repos
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.event.inputs.repo || 'alex-jb/orallexa-ai-trading-agent' }}"
+          MODE="${{ github.event.inputs.mode || 'hybrid' }}"
+          DRY="${{ github.event.inputs.dry_run || 'false' }}"
+          ARGS="--repo $REPO --mode $MODE --platforms x"
+          if [ "$DRY" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          PYTHONPATH=. python3 scripts/daily_post.py $ARGS

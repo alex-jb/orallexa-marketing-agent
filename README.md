@@ -103,6 +103,38 @@ orallexa-marketing-agent/
 
 ---
 
+## Deploy as a daily cron (GitHub Actions)
+
+Once your repo is on GitHub, the included `.github/workflows/daily.yml` runs `scripts/daily_post.py` every day at 14:00 UTC and posts to X automatically.
+
+### One-time setup
+
+1. **Push this repo** to GitHub:
+   ```bash
+   gh repo create orallexa-marketing-agent --public --source . --push
+   ```
+
+2. **Add secrets** in GitHub → repo → Settings → Secrets and variables → Actions:
+   - `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
+   - `ANTHROPIC_API_KEY` (optional — falls back to template mode if absent)
+   - `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`, `REDDIT_PASSWORD`, `REDDIT_USER_AGENT` (optional)
+
+3. **Manual test run**: Actions tab → "Daily auto-post" → "Run workflow" → tick `dry_run=true` first.
+
+### What gets posted
+
+The workflow targets `alex-jb/orallexa-ai-trading-agent` by default. Edit the cron payload in `daily.yml` or add new repos to `REPO_PRESETS` in `scripts/daily_post.py` to expand coverage. Template mode produces deterministic content from commit messages; LLM mode (Claude) produces sharper, platform-tuned posts.
+
+### Skipping rules
+
+The script skips posting when:
+- No commits in the lookback window (default 24 h)
+- All commits are CI-only / docs-only / chore-only
+
+Override with `--force` (for testing only).
+
+---
+
 ## License
 
 MIT — use it, fork it, ship it.

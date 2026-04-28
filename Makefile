@@ -18,6 +18,14 @@ demo-orallexa:
 	@echo "── Orallexa as test project (no API keys required) ──"
 	PYTHONPATH=. $(PY) examples/orallexa_demo.py
 
+daily-dry:
+	@echo "── Daily-post dry run for Orallexa repo ──"
+	PYTHONPATH=. $(PY) scripts/daily_post.py --repo alex-jb/orallexa-ai-trading-agent --dry-run
+
+daily-orallexa:
+	@echo "── Daily-post LIVE for Orallexa repo (will post to X if creds set) ──"
+	PYTHONPATH=. $(PY) scripts/daily_post.py --repo alex-jb/orallexa-ai-trading-agent --mode hybrid --platforms x
+
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .pytest_cache -exec rm -rf {} +
