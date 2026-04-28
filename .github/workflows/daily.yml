@@ -1,33 +1,42 @@
-name: Daily auto-post
+name: Daily draft generator (HITL)
+
+# Generates daily marketing drafts and commits them to queue/pending/.
+# A human reviews on GitHub (or in Obsidian after `git pull`), then either
+# `git mv queue/pending/foo.md queue/approved/foo.md && git push`
+#   → triggers publish.yml to actually post
+# OR `git mv queue/pending/foo.md queue/rejected/foo.md && git push`
+#   → permanently skipped.
 
 on:
-  # Runs every day at 14:00 UTC = 10:00 AM EDT (good engagement window).
   schedule:
-    - cron: "0 14 * * *"
-  # Allow manual triggering from the Actions tab for testing.
+    - cron: "0 14 * * *"  # 14:00 UTC = 10:00 EDT — morning engagement window
   workflow_dispatch:
     inputs:
       repo:
         description: "Target repo (owner/name)"
         required: true
         default: "alex-jb/orallexa-ai-trading-agent"
-      dry_run:
-        description: "Dry run only (no posting)?"
-        required: false
-        default: "false"
       mode:
         description: "Generation mode (template / llm / hybrid)"
         required: false
         default: "hybrid"
+      platforms:
+        description: "Space-separated platforms (x reddit linkedin dev_to bluesky mastodon)"
+        required: false
+        default: "x"
+
+permissions:
+  contents: write
+  issues: write
 
 jobs:
-  post:
+  draft:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,32 +47,57 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run daily post
+      - name: Generate drafts → queue/pending/
+        id: gen
         env:
-          # Anthropic — for LLM-mode content generation
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          # X (Twitter) — for posting
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
-
-          # Reddit — for posting (optional; will be skipped if blank)
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
-          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
-          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
-
-          # GitHub auth so `gh api` can fetch commits from public repos
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MARKETING_AGENT_QUEUE: ${{ github.workspace }}/queue
         run: |
           REPO="${{ github.event.inputs.repo || 'alex-jb/orallexa-ai-trading-agent' }}"
           MODE="${{ github.event.inputs.mode || 'hybrid' }}"
-          DRY="${{ github.event.inputs.dry_run || 'false' }}"
-          ARGS="--repo $REPO --mode $MODE --platforms x"
-          if [ "$DRY" = "true" ]; then
-            ARGS="$ARGS --dry-run"
+          PLATFORMS="${{ github.event.inputs.platforms || 'x' }}"
+          PYTHONPATH=. python3 scripts/daily_post.py \
+            --repo "$REPO" --mode "$MODE" --platforms $PLATFORMS --to-queue
+
+      - name: Commit drafts to queue/pending/
+        if: steps.gen.outputs.queued_count != '' && steps.gen.outputs.queued_count != '0'
+        run: |
+          git config user.name  "marketing-agent-bot"
+          git config user.email "marketing-agent-bot@users.noreply.github.com"
+          git add queue/pending/
+          if git diff --cached --quiet; then
+            echo "No new drafts to commit."
+            exit 0
           fi
-          PYTHONPATH=. python3 scripts/daily_post.py $ARGS
+          git commit -m "chore(queue): daily drafts for review ($(date -u +%Y-%m-%d))"
+          git push
+
+      - name: Open review notification issue
+        if: steps.gen.outputs.queued_count != '' && steps.gen.outputs.queued_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          BODY=$(cat <<EOF
+          📥 ${{ steps.gen.outputs.queued_count }} draft(s) waiting for review.
+
+          To approve and publish:
+
+          \`\`\`bash
+          git pull
+          git mv queue/pending/<file>.md queue/approved/<file>.md
+          git commit -m "approve: <file>" && git push
+          \`\`\`
+
+          To reject permanently:
+
+          \`\`\`bash
+          git mv queue/pending/<file>.md queue/rejected/<file>.md
+          git commit -m "reject: <file>" && git push
+          \`\`\`
+
+          See [queue/pending/](../tree/main/queue/pending) for drafts.
+          EOF
+          )
+          gh issue create --title "📥 Daily drafts ready for review — $DATE" --body "$BODY" --label "queue" || true

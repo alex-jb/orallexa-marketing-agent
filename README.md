@@ -129,35 +129,57 @@ orallexa-marketing-agent/
 
 ---
 
-## Deploy as a daily cron (GitHub Actions)
+## Automation — HITL pipeline (GitHub Actions)
 
-Once your repo is on GitHub, the included `.github/workflows/daily.yml` runs `scripts/daily_post.py` every day at 14:00 UTC and posts to X automatically.
+Two workflows form a **draft → review → publish** loop. The agent never posts to social media without your approval, but everything else is automatic.
+
+```
+        ┌─────────────────────┐
+        │ daily.yml @14:00 UTC│  scrapes GitHub commits → drafts → queue/pending/
+        └──────────┬──────────┘  → opens "📥 Daily drafts ready" Issue
+                   │
+                   ▼
+        ┌─────────────────────┐
+        │  YOU review         │  on github.com or after `git pull`
+        │  • approve  →  git mv pending/X.md approved/X.md
+        │  • reject   →  git mv pending/X.md rejected/X.md
+        └──────────┬──────────┘
+                   ▼
+        ┌─────────────────────┐
+        │ publish.yml         │  triggered by push to queue/approved/
+        └──────────┬──────────┘  → posts to X / Reddit / Bluesky / etc.
+                   │             → moves to queue/posted/, commits state back
+                   ▼
+              real social media
+```
 
 ### One-time setup
 
-1. **Push this repo** to GitHub:
-   ```bash
-   gh repo create orallexa-marketing-agent --public --source . --push
-   ```
-
-2. **Add secrets** in GitHub → repo → Settings → Secrets and variables → Actions:
+1. **Add secrets** at `https://github.com/<you>/<repo>/settings/secrets/actions`:
+   - `ANTHROPIC_API_KEY` (optional — falls back to template mode)
    - `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
-   - `ANTHROPIC_API_KEY` (optional — falls back to template mode if absent)
-   - `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`, `REDDIT_PASSWORD`, `REDDIT_USER_AGENT` (optional)
+   - `REDDIT_*`, `BLUESKY_*`, `MASTODON_*` (any platform you want enabled)
 
-3. **Manual test run**: Actions tab → "Daily auto-post" → "Run workflow" → tick `dry_run=true` first.
+2. **Trigger first run** manually: Actions → "Daily draft generator (HITL)" → Run workflow.
 
-### What gets posted
-
-The workflow targets `alex-jb/orallexa-ai-trading-agent` by default. Edit the cron payload in `daily.yml` or add new repos to `REPO_PRESETS` in `scripts/daily_post.py` to expand coverage. Template mode produces deterministic content from commit messages; LLM mode (Claude) produces sharper, platform-tuned posts.
+3. **Approve a draft** to test publish.yml:
+   ```bash
+   git pull
+   git mv queue/pending/<file>.md queue/approved/<file>.md
+   git commit -m "approve: test" && git push
+   ```
 
 ### Skipping rules
 
-The script skips posting when:
-- No commits in the lookback window (default 24 h)
+`daily_post.py` skips when:
+- No commits in the lookback window (default 24h)
 - All commits are CI-only / docs-only / chore-only
 
-Override with `--force` (for testing only).
+Override with `--force` (testing only).
+
+### Targets
+
+`daily.yml` defaults to `alex-jb/orallexa-ai-trading-agent`. Add new repos to `REPO_PRESETS` in `scripts/daily_post.py`, or pass `--repo` via workflow_dispatch.
 
 ---
 

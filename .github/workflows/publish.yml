@@ -1,0 +1,81 @@
+name: Publish approved queue items
+
+# Triggered when:
+#   1. A human moves a file from queue/pending/ → queue/approved/ and pushes
+#   2. Manual dispatch (Actions tab → "Publish approved queue items" → Run)
+#
+# Behavior: runs `marketing_agent post` against queue/approved/. Each item is
+# posted to its target platform, then moved to queue/posted/. The state changes
+# are committed back to main so the queue stays a single source of truth.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "queue/approved/**"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run only (preview, don't actually post)?"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Publish approved drafts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_INSTANCE: ${{ secrets.MASTODON_INSTANCE }}
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          MARKETING_AGENT_QUEUE: ${{ github.workspace }}/queue
+        run: |
+          DRY="${{ github.event.inputs.dry_run || 'false' }}"
+          if [ "$DRY" = "true" ]; then
+            echo "── Dry run: previewing approved/ items ──"
+            ls -1 queue/approved/ 2>/dev/null || echo "(empty)"
+          else
+            PYTHONPATH=. python3 -m marketing_agent post
+          fi
+
+      - name: Commit queue state changes (approved → posted)
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          git config user.name  "marketing-agent-bot"
+          git config user.email "marketing-agent-bot@users.noreply.github.com"
+          git add queue/
+          if git diff --cached --quiet; then
+            echo "No queue state changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(queue): publish approved drafts ($(date -u +%Y-%m-%d))"
+          git push

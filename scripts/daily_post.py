@@ -21,7 +21,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from marketing_agent import (
-    GenerationMode, Orchestrator, Platform, Project,
+    ApprovalQueue, GenerationMode, Orchestrator, Platform, Project,
 )
 from marketing_agent.platforms.base import NotConfigured
 
@@ -130,6 +130,8 @@ def main() -> int:
                     help="Required when posting to reddit")
     ap.add_argument("--dry-run", action="store_true",
                     help="Generate and preview, don't actually post")
+    ap.add_argument("--to-queue", action="store_true",
+                    help="Submit drafts to ApprovalQueue (HITL) instead of posting directly")
     ap.add_argument("--force", action="store_true",
                     help="Post even when commits look skippable")
     ap.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
@@ -165,6 +167,22 @@ def main() -> int:
 
     print(f"🤖 Generating posts (mode={mode.value})...")
     posts = orch.generate(project, platforms, subreddit=args.subreddit)
+
+    if args.to_queue:
+        q = ApprovalQueue()
+        paths: list[str] = []
+        for post in posts:
+            print(f"\n--- {post.platform.value.upper()} preview ---")
+            print(orch.preview(post))
+            p = q.submit(post, preset["name"], generated_by=mode.value)
+            paths.append(str(p))
+            print(f"📥 queued: {p}")
+        # GitHub Actions: surface the paths as a step output for the next job.
+        gh_out = os.getenv("GITHUB_OUTPUT")
+        if gh_out:
+            with open(gh_out, "a") as fh:
+                fh.write(f"queued_count={len(paths)}\n")
+        return 0
 
     failed = 0
     for post in posts:
