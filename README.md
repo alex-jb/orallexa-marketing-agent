@@ -1,8 +1,14 @@
 # Orallexa Marketing Agent
 
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen.svg)](#)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](#)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-X%20%7C%20Reddit%20%7C%20LinkedIn%20%7C%20Dev.to%20%7C%20Bluesky%20%7C%20Mastodon%20%7C%20%E7%9F%A5%E4%B9%8E%20%7C%20%E5%B0%8F%E7%BA%A2%E4%B9%A6-purple.svg)](#)
+
 > **Submit your AI/OSS project once. Get auto-generated, platform-specific marketing content. Distribute everywhere.**
 
-An open-source Python SDK for solo OSS founders who write code well but don't have time (or audience) to do marketing themselves.
+An open-source Python SDK + CLI for solo OSS founders who write code well but don't have time (or audience) to do marketing themselves.
 
 Built by [Xiaoyu (Alex) Ji](https://github.com/alex-jb) — Navy veteran, MS CS @ Yeshiva University, building [Orallexa](https://github.com/alex-jb/orallexa-ai-trading-agent) and [VibeXForge](https://github.com/alex-jb/vibex). Yes, it's named after Orallexa — that's the project that needed it most.
 
@@ -62,16 +68,28 @@ To enable LLM-quality content, add an Anthropic key to `.env`. To actually post,
 
 ---
 
-## Status
+## Status — v0.3.0
 
-**v0.1 (Phase 1)** — basic SDK, three platforms (X working, Reddit stub, LinkedIn stub), template fallback when no LLM key set. Not on PyPI yet.
+What works today:
 
-Roadmap (from `marketing-agent-plan/ROADMAP.md`):
-- [x] Phase 1 scaffold
-- [ ] Phase 2 (weeks 3-4): reply suggester, Chinese platforms (知乎/小红书 semi-auto)
-- [ ] Phase 3 (weeks 5-6): generic SDK + real-world examples
-- [ ] Phase 4 (weeks 7-8): open-source launch
-- [ ] Phase 5+: VibeXForge integration, Stripe, paid tiers, YC apply
+| Layer | Capability |
+|---|---|
+| **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester |
+| **Platforms** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Dev.to (markdown) · LinkedIn (dry-run) · 知乎/小红书 (Phase 3 — Playwright) |
+| **Workflow** | HITL approval queue (markdown files, Obsidian-friendly) · SQLite dedup · cost tracker (Anthropic + X per-post) · daily cron via GitHub Actions |
+| **Strategy** | LaunchPlan generator (template + LLM mode) writes 30-day playbook · reply-draft suggester (scan handles → filter → draft) |
+| **Analytics** | EngagementTracker pulls X metrics, ranks top posts |
+| **Integrations** | VibeXForge sister-product event push (auto-advances hero-card stages) |
+
+CLI subcommands: `generate · post · queue · history · cost · plan · replies · engage`
+
+Roadmap:
+- [x] **v0.1** — scaffold, X / Reddit / LinkedIn stubs
+- [x] **v0.2** — memory + threads + queue + cost + Bluesky + Mastodon + CLI
+- [x] **v0.3** — reply suggester + engagement tracker + launch planner + 知乎/小红书 stubs + VibeXForge + image prompts
+- [ ] **v0.4** — A/B variant generator · best-time-to-post analyzer · GitHub release → auto-post webhook · PyPI release
+- [ ] **v0.5** — Critic agent (LangGraph) · semantic dedup (embeddings) · Streamlit queue UI
+- [ ] **v1.0** — open-source launch · YC application
 
 ---
 
@@ -81,14 +99,22 @@ Roadmap (from `marketing-agent-plan/ROADMAP.md`):
 orallexa-marketing-agent/
 ├── marketing_agent/
 │   ├── types.py             Pydantic models for Project, Post, Platform, Engagement
-│   ├── content/             Content generation (Claude or template fallback)
-│   ├── platforms/           Platform adapters: X (real), Reddit (stub), LinkedIn (stub)
-│   └── orchestrator.py      High-level: project → posts → distribute
-├── examples/
-│   ├── orallexa_demo.py     Use Orallexa as the test project
-│   └── generic_demo.py      Submit a fake project, see what gets generated
-├── tests/                   Smoke tests, all offline
-└── docs/architecture.md     1-page system diagram
+│   ├── content/             Content generation + image prompt suggester
+│   ├── platforms/           8 adapters (X, Reddit, LinkedIn, Dev.to, Bluesky, Mastodon, 知乎, 小红书)
+│   ├── integrations/        VibeXForge event push
+│   ├── orchestrator.py      High-level: project → posts → distribute
+│   ├── memory.py            SQLite dedup
+│   ├── queue.py             Markdown-file approval queue (Obsidian-friendly)
+│   ├── threads.py           Auto-split long posts into threads
+│   ├── cost.py              Per-call Anthropic + X cost tracking
+│   ├── engagement.py        Pull X metrics, rank top posts
+│   ├── reply_suggester.py   Scan handles → filter → draft replies → queue
+│   ├── strategy.py          LaunchPlan generator (template + LLM)
+│   └── cli.py               argparse CLI: generate/post/queue/history/cost/plan/replies/engage
+├── examples/                Offline demos (no API keys needed)
+├── scripts/daily_post.py    Cron-friendly: GitHub commits → posts
+├── .github/workflows/       Daily auto-post Action
+└── tests/                   49 tests, all offline
 ```
 
 ---
