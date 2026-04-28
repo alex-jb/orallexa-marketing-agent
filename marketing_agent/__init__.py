@@ -7,11 +7,16 @@ from marketing_agent.memory import PostMemory
 from marketing_agent.cost import CostTracker
 from marketing_agent.queue import ApprovalQueue
 from marketing_agent.threads import build_thread_posts, split_into_thread
+from marketing_agent.engagement import EngagementTracker
+from marketing_agent.strategy import (
+    LaunchPlan, LaunchAction, default_plan, llm_plan, write_plan,
+)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",
-    "PostMemory", "CostTracker", "ApprovalQueue",
+    "PostMemory", "CostTracker", "ApprovalQueue", "EngagementTracker",
     "build_thread_posts", "split_into_thread",
+    "LaunchPlan", "LaunchAction", "default_plan", "llm_plan", "write_plan",
 ]

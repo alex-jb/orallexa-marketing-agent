@@ -6,6 +6,9 @@ Subcommands:
     history     Show recent posts and stats.
     cost        Show running cost summary.
     queue       List items in pending/approved/posted/rejected.
+    plan        Generate a launch plan (markdown) for a project.
+    replies     Suggest reply drafts for tweets in your timeline.
+    engage      Pull current engagement metrics for a posted tweet.
 
 Designed for both interactive use and cron / GitHub Actions invocation.
 """
@@ -125,6 +128,46 @@ def cmd_queue(args) -> int:
     return 0
 
 
+def cmd_plan(args) -> int:
+    """Generate a launch plan markdown file."""
+    from marketing_agent.strategy import write_plan
+    project = Project(name=args.name, tagline=args.tagline,
+                       description=args.description, tags=args.tags or [])
+    use_llm = args.mode == "llm"
+    path = write_plan(project, days=args.days, use_llm=use_llm,
+                       out_dir=args.out_dir)
+    print(f"📋 Plan written: {path}")
+    return 0
+
+
+def cmd_replies(args) -> int:
+    """Generate reply drafts for tweets from given handles → approval queue."""
+    from marketing_agent.reply_suggester import suggest_replies_to_queue
+    paths = suggest_replies_to_queue(
+        args.handles, keywords=args.keywords or None,
+        hours=args.hours, min_engagement=args.min_engagement,
+        project_name=args.project, use_llm=(args.mode != "template"),
+    )
+    if not paths:
+        print("(no relevant tweets found, or X not configured)")
+    for p in paths:
+        print(f"📥 {p}")
+    return 0
+
+
+def cmd_engage(args) -> int:
+    """Pull current engagement metrics for a tweet via X API."""
+    from marketing_agent.engagement import EngagementTracker
+    t = EngagementTracker()
+    events = t.fetch_x_metrics(args.post_id)
+    if not events:
+        print("(no metrics — X not configured or tweet not found)")
+        return 1
+    for e in events:
+        print(f"  {e.metric:10s}  {e.count}")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="marketing_agent",
@@ -165,6 +208,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     qcmd = sub.add_parser("queue", help="List approval queue contents")
     qcmd.add_argument("--limit", type=int, default=10)
     qcmd.set_defaults(func=cmd_queue)
+
+    pl = sub.add_parser("plan", help="Generate a launch plan (markdown)")
+    pl.add_argument("--name", required=True)
+    pl.add_argument("--tagline", required=True)
+    pl.add_argument("--description", default=None)
+    pl.add_argument("--tags", nargs="*", default=None)
+    pl.add_argument("--days", type=int, default=30)
+    pl.add_argument("--mode", choices=["template", "llm"], default="template")
+    pl.add_argument("--out-dir", default="docs")
+    pl.set_defaults(func=cmd_plan)
+
+    r = sub.add_parser("replies", help="Generate reply drafts to your timeline")
+    r.add_argument("--handles", nargs="+", required=True)
+    r.add_argument("--keywords", nargs="*", default=None)
+    r.add_argument("--hours", type=int, default=24)
+    r.add_argument("--min-engagement", type=int, default=5)
+    r.add_argument("--project", default="engagement")
+    r.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
+    r.set_defaults(func=cmd_replies)
+
+    e = sub.add_parser("engage", help="Pull current engagement metrics for a tweet")
+    e.add_argument("--post-id", required=True)
+    e.set_defaults(func=cmd_engage)
 
     args = parser.parse_args(argv)
     return args.func(args)
