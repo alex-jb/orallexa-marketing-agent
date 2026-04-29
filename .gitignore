@@ -13,3 +13,6 @@ venv/
 dist/
 build/
 *.egg-info/
+coverage.xml
+.marketing_agent.db
+docs/launch_plan_*.md

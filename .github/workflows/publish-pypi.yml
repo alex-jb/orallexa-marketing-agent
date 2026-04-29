@@ -1,0 +1,65 @@
+name: Publish to PyPI
+
+# Triggered by pushing a `v*.*.*` tag (e.g. v0.8.0). Builds wheel + sdist,
+# verifies them, then uploads to PyPI iff PYPI_API_TOKEN secret is set.
+# If the secret isn't set, the workflow runs through build + check (catching
+# any packaging regressions) but skips upload — safe to enable later.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (must already exist)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: pip install --upgrade build twine
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      - name: Verify with twine check
+        run: twine check dist/*
+
+      - name: Upload as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        if: env.PYPI_API_TOKEN != ''
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+      - name: Skip publish (no token)
+        if: env.PYPI_API_TOKEN == ''
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "::notice::PYPI_API_TOKEN secret not set — built artifacts are
+          attached to the workflow run, but upload was skipped. Set the secret
+          at https://github.com/${{ github.repository }}/settings/secrets/actions
+          to enable auto-publish on next tag push."

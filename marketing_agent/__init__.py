@@ -20,8 +20,12 @@ from marketing_agent.logging import get_logger
 from marketing_agent.supervisor import supervise, SupervisorResult
 from marketing_agent.reflexion_memory import ReflexionMemory
 from marketing_agent.multiproject import ProjectConfig, load_config
+from marketing_agent.observability import init_tracing, span, traced
+from marketing_agent.dspy_signatures import (
+    get_signatures, list_signatures, is_dspy_available,
+)
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",
@@ -33,4 +37,6 @@ __all__ = [
     "retry_on_transient", "get_logger",
     "supervise", "SupervisorResult", "ReflexionMemory",
     "ProjectConfig", "load_config",
+    "init_tracing", "span", "traced",
+    "get_signatures", "list_signatures", "is_dspy_available",
 ]
