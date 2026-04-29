@@ -77,7 +77,8 @@ make demo      # 跑 examples/generic_demo.py — 全离线，模板模式
 |---|---|
 | **Agent 内核** | **Drafter → Critic → Rewriter supervisor**（Reflexion-lite，无需 LangGraph 依赖）· **持久化 reflexion memory**（跨 session 学习历史失败模式）· **Claude Agent SDK 适配器**（装了就用官方 SDK 0.1.68+，否则降级）· **Prompt caching 标记**（key 配上后 daily cron 省 ~80% 输入 token） |
 | **内容生成** | Claude Sonnet 4.6 / Haiku 4.5 或模板降级 · 自动拆 thread · 配图 prompt suggester · 每平台 N 个风格变体 |
-| **支持平台** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Dev.to (markdown) · LinkedIn (dry-run) · 知乎 / 小红书 (Phase 3 — Playwright) |
+| **支持平台 — 自动发布** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) |
+| **支持平台 — 内容准备** | Dev.to (markdown 导出，手动粘) · LinkedIn (API 限制严) · **知乎 / 小红书（手动发，永远不自动 — 见[中文平台策略](#中文平台策略--2026-反爬现实)）** |
 | **质量门** | Heuristic + LLM critic 自动拒废稿（hype 词、字数超限、全大写、hashtag 灌水）· **混合检索去重**（60% 稠密 + 40% BM25，比纯稠密 +17pp MRR） |
 | **可靠性** | 平台 adapter 指数退避重试（429 / 5xx / 网络抖动） · 结构化 JSON 日志（Langfuse / OTel 兼容） |
 | **工作流** | HITL 审批 queue · 4 个 GitHub Actions：`daily.yml` · `release-announce.yml` · `publish.yml` · `test.yml` · **多项目 YAML 配置** |
@@ -101,7 +102,35 @@ Roadmap：
 - [x] **v0.10** — Streamlit queue UI（`marketing-agent ui`，浏览器/手机都能用）· 定时发布（`scheduled_for` frontmatter + 每小时 cron + `marketing-agent schedule --best-time`）· CLI smoke tests（cli.py 0% → 已覆盖）· 198 tests, 76% coverage
 - [x] **v0.11** — **ICPL**（in-context 偏好学习，编辑信号当 few-shot，免训练）· **多 LLM ensemble critic**（LiteLLM 把 Claude + GPT-5 + Gemini 串起来 majority vote）· **self-consistency-3** 短文案 supervisor 加固 · **Bluesky firehose 监听**（免费实时 engagement，对比 X Enterprise $42k/yr 才有 webhook）· 228 tests, 75% coverage
 - [x] **v0.12** — **Edge inference fallback**（Cloudflare Workers AI Llama 3.3 当 cheap drafter，比 Claude 省 ~80% 成本）· **Voyager 风格 auto-skill 自动晋升**（top-quartile 高分帖自动写入 `skills/learned/*.md`）· **A/B variants report**（每平台 winner + 95% 可信区间）· **Failure post-mortem**（`marketing-agent autopsy --post-id X` heuristic 解释为啥挂了）· 269 tests, 76% coverage
-- [ ] **v0.13** — DSPy 用 engagement 历史编译 · Computer Use 知乎/小红书 发帖 · X engagement webhook（延期 — Enterprise tier $$）· PyPI tag-触发自动发布
+- [ ] **v0.13** — DSPy 用 engagement 历史编译 · Bilibili 视频上传（官方开放平台）· 中文平台**只读监听**（趋势抓取、竞品笔记分析）· X engagement webhook（延期 — Enterprise tier $$）· PyPI tag-触发自动发布
+
+---
+
+## 中文平台策略 — 2026 反爬现实
+
+研究表明,**永远不要自动发到 小红书 / 知乎**。这个 agent 故意不做这件事。理由：
+
+**为什么不自动发**:
+- 小红书的"阿瑞斯"风控系统用 TLS 指纹 + 行为遥测。Playwright + stealth 能绕过浏览器指纹,但**绕不过** TLS 指纹和行为模型。检测是行为级的。
+- 小红书新号需要 2-4 周养号才能正常发布。2026 年 1 月一次扫荡封了 37 个矩阵账号。
+- 小红书要求 AI 内容必须自己声明（高级选项 → 内容类型声明）,不勾选会限流或 ban。
+- 知乎 自 2020 年起没有公开发布 API。多账号自动化抓得很快。
+- Anthropic Computer Use 功能上能做但**没有检测优势**（同样的 browser surface）,而且每条帖要 ~$0.30-1 的截图 token。
+- 小红书官方开放平台是白名单（蒲公英/聚光/千帆 — 品牌方,独立开发者用不了）。
+
+**这个 agent 做了什么 instead**:
+1. **生成平台调过音的内容**：`zhihu.dry_run_preview()` / `xiaohongshu.dry_run_preview()` 给你格式化好的正文 + AI 声明提醒 + 算法友好的 hook 模板 + 长度分类（短答/中等/长答 / 图片建议）
+2. **每条 2026 平台规则提前提醒** 在你手动粘贴前
+3. **指引到正确入口**: 知乎 → 找一个现有问题点"写回答"（回答 ≫ 文章 for SEO）；小红书 → `creator.xiaohongshu.com` + 勾 AI 选项
+
+**OSS 独立开发者 2026 年的 80/20 路径**:
+- 每个平台一个真养号的真账号,手动每周发 2-3 条
+- 知乎是中文最高 ROI 的渠道：长文回答 + 代码块,百度 SEO 能排几年
+- 跳过微信视频号（2026 年 4 月 banned 所有第三方自动发布）
+- 视频内容走 Bilibili（开放平台支持上传,需要真开发者账号）
+- 自动化用在**只读**：趋势抓取、评论监控、竞品笔记分析
+
+> **底线**：把写文 pipeline 自动化,不要把"发布"按钮自动化。2026 年自动发中文平台的 ROI 把账号烧损算进去就是负的。
 - [ ] **v1.0** — 开源公开 launch · YC 申请
 
 ---

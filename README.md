@@ -80,7 +80,8 @@ What works today:
 |---|---|
 | **Agentic core** | **Drafter → Critic → Rewriter supervisor** (Reflexion-lite, no LangGraph dep) · **persistent reflexion memory** (cross-session learning from past failures) · **Claude Agent SDK adapter** (uses official SDK 0.1.68+ when installed; falls back gracefully) · **prompt caching markers** on all LLM calls (cuts cost ~80% on daily cron) |
 | **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester · N stylistic variants per platform |
-| **Platforms** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Dev.to (markdown) · LinkedIn (dry-run) · 知乎/小红书 (Phase 3) |
+| **Platforms — auto-publish** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) |
+| **Platforms — content-prep only** | Dev.to (markdown export, manual paste) · LinkedIn (API restricted) · **知乎 / 小红书 (manual publish, never auto — see [Chinese platform strategy](#chinese-platform-strategy-2026-reality))** |
 | **Quality gate** | Heuristic + LLM critic (auto-rejects hype/spam/length-fail before queuing) · **hybrid retrieval dedup** (60% dense + 40% BM25, +17pp MRR vs dense-alone) — never repost a paraphrase |
 | **Reliability** | Exponential-backoff retry on all platform adapters (transient errors, 429, 5xx) · structured JSON logs (Langfuse / OTel-compatible) |
 | **Workflow** | HITL approval queue · 3 GitHub Actions: `daily.yml` · `release-announce.yml` · `publish.yml` · **multi-project YAML config** (one cron, N projects) |
@@ -106,6 +107,34 @@ Roadmap:
 - [x] **v0.12** — **Edge inference fallback** (Cloudflare Workers AI Llama 3.3 as cheap drafter, ~80% cost reduction vs Claude) · **Voyager-style auto-skill promotion** (top-quartile posts → `skills/learned/*.md`) · **A/B variants report** (per-platform winner with 95% credible intervals) · **Failure post-mortem** (`marketing-agent autopsy --post-id X` heuristic explanation) · 269 tests, 76% coverage
 - [ ] **v0.13** — DSPy compilation against engagement history · Computer Use 知乎/小红书 publishing · X engagement webhook (deferred — Enterprise tier $$) · PyPI auto-publish on tag
 - [ ] **v1.0** — open-source launch · YC application
+
+---
+
+## Chinese platform strategy — 2026 reality
+
+Per Q2 2026 anti-bot research, the agent **deliberately does not auto-publish** to 小红书 (Xiaohongshu) or 知乎 (Zhihu). Here's why and what we do instead.
+
+**Why no auto-post**:
+- 小红书's 阿瑞斯 risk system uses TLS fingerprinting + behavioral telemetry. Playwright + stealth defeats client-side fingerprints but **not** TLS or behavioral models. Detection is behavioral.
+- New 小红书 accounts need 2-4 weeks of 养号 before they can publish without shadow-bans. Jan 2026 sweep: 37 matrix accounts banned in one operator.
+- 小红书 requires self-disclosure of AI-assisted content (高级选项 → 内容类型声明). Failing to disclose triggers limit/ban.
+- 知乎 has no public publishing API since 2020. Multi-account automation gets caught fast.
+- Anthropic Computer Use works functionally but adds **no detection advantage** over Playwright (same browser surface) and costs ~$0.30-1/post in screenshot tokens.
+- Official 小红书 开放平台 is whitelist-only (蒲公英 / 聚光 / 千帆 — brands, not indie devs).
+
+**What the agent DOES do for these platforms**:
+1. **Generates platform-tuned content prep** via `marketing_agent.platforms.zhihu.dry_run_preview()` and `xiaohongshu.dry_run_preview()` — formatted body + AI-disclosure reminder + algorithm-friendly hooks + length classifier (短答/中等/长答 for 知乎, 配图建议 for 小红书).
+2. **Reminds you of every 2026 platform rule** before you paste manually.
+3. **Routes you to the right place**: 知乎 to a target question (回答 ≫ 文章 for SEO), 小红书 to `creator.xiaohongshu.com` with the AI checkbox checked.
+
+**The 80/20 path for an indie OSS founder in 2026**:
+- One real warmed account per platform. Manual publish, 2-3x/week.
+- 知乎 = highest leverage. Long-form 回答 with code blocks ranks on Baidu for years.
+- Skip 微信视频号 (April 2026 banned all third-party automated publishing).
+- For video content, use Bilibili (official open platform supports uploads with a real dev account).
+- Reserve automation for **read-only**: trend scraping, comment monitoring, competitor 笔记 analysis.
+
+> **Bottom line**: Automate the writing pipeline, not the publish button. The agent is doing this because the 2026 ROI of automated Chinese-platform posting is **negative** once account-burn is factored.
 
 ---
 
