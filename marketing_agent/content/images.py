@@ -37,7 +37,7 @@ def suggest_image_prompt(project: Project, *,
     cross-agent cost-audit report. Falls back to template on any failure.
     """
     try:
-        from solo_founder_os.anthropic_client import (
+        from marketing_agent.llm.anthropic_compat import (
             AnthropicClient, DEFAULT_HAIKU_MODEL,
         )
         from marketing_agent.cost import USAGE_LOG_PATH

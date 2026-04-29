@@ -23,11 +23,14 @@ dependencies = [
     "pydantic>=2.9,<3",
     "tweepy>=4.14",
     "anthropic>=0.40",
-    "solo-founder-os>=0.1.0",
     "python-dotenv>=1.0",
     "praw>=7.7",
     "rich>=13.9",
 ]
+# solo-founder-os is opt-in via [shared] extras — it's the cross-agent
+# usage-logging base. Without it, the local fallback shim in
+# `marketing_agent/llm/anthropic_compat.py` provides the same API
+# (just no usage log; LLM calls still work).
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3", "pytest-cov>=5.0", "build>=1.2", "twine>=5.0"]
@@ -44,6 +47,7 @@ dspy = ["dspy-ai>=2.5"]
 ui = ["streamlit>=1.40"]
 ensemble = ["litellm>=1.55"]
 firehose = ["atproto>=0.0.55"]
+shared = ["solo-founder-os>=0.1.0"]
 
 [project.scripts]
 marketing-agent = "marketing_agent.cli:main"

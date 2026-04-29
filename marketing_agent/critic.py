@@ -142,7 +142,7 @@ def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]
     token usage flows into the cross-agent cost-audit report. Returns None
     if no key set or any failure."""
     try:
-        from solo_founder_os.anthropic_client import (
+        from marketing_agent.llm.anthropic_compat import (
             AnthropicClient, DEFAULT_HAIKU_MODEL,
         )
         from marketing_agent.cost import USAGE_LOG_PATH

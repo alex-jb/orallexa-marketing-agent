@@ -118,7 +118,7 @@ def llm_reply(tweet: Tweet, *, your_voice: str = "") -> str:
     token usage flows into the cross-agent cost-audit report). Falls back
     to template_reply on missing key or any failure."""
     try:
-        from solo_founder_os.anthropic_client import (
+        from marketing_agent.llm.anthropic_compat import (
             AnthropicClient, DEFAULT_SONNET_MODEL,
         )
         from marketing_agent.cost import USAGE_LOG_PATH

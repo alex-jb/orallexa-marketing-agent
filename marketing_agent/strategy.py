@@ -168,7 +168,7 @@ def llm_plan(project: Project, *, days: int = 30,
     Sonnet's reasoning; Haiku is ~4x cheaper and 2x faster.
     """
     try:
-        from solo_founder_os.anthropic_client import (
+        from marketing_agent.llm.anthropic_compat import (
             AnthropicClient, DEFAULT_HAIKU_MODEL,
         )
         from marketing_agent.cost import USAGE_LOG_PATH

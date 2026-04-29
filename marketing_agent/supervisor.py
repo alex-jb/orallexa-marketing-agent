@@ -69,7 +69,7 @@ def _draft_attempt(project: Project, platform: Platform, *,
     # the cross-agent cost-audit report). Imported locally so test runs
     # without solo-founder-os still work via fallback.
     try:
-        from solo_founder_os.anthropic_client import (
+        from marketing_agent.llm.anthropic_compat import (
             AnthropicClient, DEFAULT_SONNET_MODEL,
         )
         from marketing_agent.content.generator import (

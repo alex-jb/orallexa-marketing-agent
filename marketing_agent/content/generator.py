@@ -119,7 +119,7 @@ def _generate_with_llm(
 
     # Tier 2: Anthropic Claude via solo_founder_os.AnthropicClient
     # (token usage flows into the cross-agent cost-audit report).
-    from solo_founder_os.anthropic_client import (
+    from marketing_agent.llm.anthropic_compat import (
         AnthropicClient, DEFAULT_SONNET_MODEL,
     )
     from marketing_agent.cost import USAGE_LOG_PATH
