@@ -80,10 +80,17 @@ def _generate_with_llm(
     system_prompt = _system_for(platform)
     user_prompt = _user_prompt_for(project, platform, subreddit=subreddit)
 
+    # Prompt caching: the system prompt (~200-400 tokens of style guide)
+    # is stable across all daily-cron calls. Marking it cache_control
+    # ephemeral with 1h TTL cuts input cost ~80% on repeated runs.
+    # No-op when no key is set (we never enter this function in that case).
     resp = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=600,
-        system=system_prompt,
+        system=[{
+            "type": "text", "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }],
         messages=[{"role": "user", "content": user_prompt}],
     )
     text = "".join(b.text for b in resp.content if b.type == "text").strip()

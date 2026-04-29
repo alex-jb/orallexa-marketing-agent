@@ -1,0 +1,64 @@
+{
+  "name": "orallexa-marketing-agent",
+  "displayName": "Orallexa Marketing Agent",
+  "description": "AI marketing agent for OSS founders. Drafts platform-specific posts (X / Reddit / Bluesky / Mastodon / Dev.to / LinkedIn / Zhihu / Xiaohongshu) from a project description and recent commits. Production-grade quality gate (heuristic + LLM critic), semantic dedup, Thompson-sampling variant bandit, and a HITL approval pipeline.",
+  "version": "0.6.0",
+  "license": "MIT",
+  "homepage": "https://github.com/alex-jb/orallexa-marketing-agent",
+  "repository": "https://github.com/alex-jb/orallexa-marketing-agent",
+  "owner": {
+    "name": "Xiaoyu (Alex) Ji",
+    "url": "https://github.com/alex-jb"
+  },
+  "spec": {
+    "a2a_protocol_version": "1.2",
+    "mcp_server": {
+      "command": "marketing-agent-mcp",
+      "transport": "stdio"
+    }
+  },
+  "capabilities": [
+    {
+      "id": "draft_posts",
+      "description": "Generate platform-specific marketing drafts for a project. Returns N stylistic variants picked via Thompson-sampling bandit.",
+      "inputs": ["name", "tagline", "platforms[]", "description?", "github_url?", "recent_changes[]?", "n_variants?"],
+      "outputs": ["posts[{platform, body, title?, char_count, variant_key?}]"]
+    },
+    {
+      "id": "critique",
+      "description": "Score a draft post on quality (hype words, length, all-caps, hashtag spam) using heuristic + optional LLM critic.",
+      "inputs": ["post"],
+      "outputs": ["score", "reasons[]", "auto_reject"]
+    },
+    {
+      "id": "launch_plan",
+      "description": "Generate a 30/60/90-day launch plan with PH-launch-relative timing for HN and long-form retros.",
+      "inputs": ["name", "tagline", "days", "ph_launch_day"],
+      "outputs": ["markdown_path"]
+    },
+    {
+      "id": "engagement_top",
+      "description": "Show top-performing past posts on a platform.",
+      "inputs": ["metric?", "platform?", "limit?"],
+      "outputs": ["rows[{post_id, platform, peak_count}]"]
+    },
+    {
+      "id": "optimal_time",
+      "description": "Best time to post on a platform based on engagement history (hour-of-week empirical CDF).",
+      "inputs": ["platform"],
+      "outputs": ["weekday", "hour_utc", "source"]
+    }
+  ],
+  "discovery": {
+    "tags": ["marketing", "automation", "ai-agent", "oss", "build-in-public", "social-media"],
+    "supported_platforms": ["x", "reddit", "linkedin", "dev_to", "bluesky", "mastodon", "zhihu", "xiaohongshu"],
+    "language": "python",
+    "min_python_version": "3.11"
+  },
+  "auth": {
+    "anthropic_api_key": "optional",
+    "voyage_api_key": "optional",
+    "x_oauth": "optional (for posting)",
+    "reddit_oauth": "optional (for posting)"
+  }
+}

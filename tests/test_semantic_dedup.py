@@ -58,17 +58,18 @@ def test_add_and_nearest_with_synthetic_embedder(tmp_path, monkeypatch):
     idx = SemanticDedupIndex(db_path=tmp_path / "db.sqlite")
     assert idx.add("h1", "the quick brown fox", project_name="proj",
                     platform=Platform.X) is True
+    # Dense-only path: identical query & doc → cosine 1.0
     near = idx.nearest("the quick brown fox", project_name="proj",
-                         platform=Platform.X)
+                         platform=Platform.X, hybrid=False)
     assert len(near) == 1
     assert near[0]["similarity"] == pytest.approx(1.0, abs=1e-6)
 
 
-def test_is_near_duplicate_threshold(tmp_path, monkeypatch):
+def test_is_near_duplicate_dense_only(tmp_path, monkeypatch):
+    """Dense-only mode: same semantics as v0.5 (cosine threshold)."""
     import marketing_agent.semantic_dedup as sd
 
     def _fake(text):
-        # Identical for "A" / "A2" → similarity 1.0; different for "B".
         if text.startswith("A"):
             return [1.0, 0.0, 0.0]
         return [0.0, 1.0, 0.0]
@@ -78,8 +79,36 @@ def test_is_near_duplicate_threshold(tmp_path, monkeypatch):
     idx = SemanticDedupIndex(db_path=tmp_path / "db.sqlite")
     idx.add("h1", "A original", project_name="p", platform=Platform.X)
     is_dup, _ = idx.is_near_duplicate("A2 reposted", project_name="p",
-                                         platform=Platform.X, threshold=0.92)
+                                         platform=Platform.X,
+                                         threshold=0.92, hybrid=False)
     assert is_dup is True
     is_dup, _ = idx.is_near_duplicate("B different", project_name="p",
-                                         platform=Platform.X, threshold=0.92)
+                                         platform=Platform.X,
+                                         threshold=0.92, hybrid=False)
     assert is_dup is False
+
+
+def test_hybrid_blends_dense_and_bm25(tmp_path, monkeypatch):
+    """Hybrid mode: a query that shares both semantic and surface tokens
+    with one stored doc and ONLY semantic with another should rank the
+    surface-overlapping one higher."""
+    import marketing_agent.semantic_dedup as sd
+
+    # Stub dense: both "A1 …" docs vs the query are equally close.
+    def _fake(text):
+        return [1.0, 0.0, 0.0] if text.startswith("A") else [0.0, 1.0, 0.0]
+    monkeypatch.setattr(sd, "_embed_voyage", lambda _t: None)
+    monkeypatch.setattr(sd, "_embed_local", _fake)
+
+    idx = SemanticDedupIndex(db_path=tmp_path / "db.sqlite")
+    # Both stored docs have identical dense embedding
+    idx.add("h1", "A1 marketing-agent shipped today", project_name="p",
+              platform=Platform.X)
+    idx.add("h2", "A2 entirely different copy", project_name="p",
+              platform=Platform.X)
+    rows = idx.nearest("A1 marketing-agent shipped today",
+                          project_name="p", platform=Platform.X,
+                          top_k=2, hybrid=True)
+    # Surface-overlapping doc should rank first under hybrid
+    assert rows[0]["content_hash"] == "h1"
+    assert rows[0]["similarity"] > rows[1]["similarity"]

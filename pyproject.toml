@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orallexa-marketing-agent"
-version = "0.5.0"
+version = "0.6.0"
 description = "AI marketing agent for OSS founders — auto-generate and distribute project content across X, Reddit, LinkedIn, and more."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,7 @@ dependencies = [
 dev = ["pytest>=8.3", "pytest-cov>=5.0"]
 mcp = ["fastmcp>=2.0"]
 embeddings = ["sentence-transformers>=3.0"]
+agent_sdk = ["claude-agent-sdk>=0.1.68"]
 
 [project.scripts]
 marketing-agent = "marketing_agent.cli:main"

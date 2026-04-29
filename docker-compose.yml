@@ -1,0 +1,50 @@
+# docker-compose.yml — local dev / lightweight self-hosted run.
+#
+# Two services:
+#   agent   — one-shot CLI; useful for `docker compose run agent generate ...`
+#   cron    — long-running scheduler; honors UTC; runs daily.yml-equivalent
+#
+# Both share the same volume so the SQLite DB + queue persist across runs.
+
+services:
+  agent:
+    build: .
+    image: orallexa/marketing-agent:latest
+    env_file:
+      - .env
+    environment:
+      - MARKETING_AGENT_DB_PATH=/data/history.db
+      - MARKETING_AGENT_QUEUE=/data/queue
+    volumes:
+      - agent-data:/data
+      - ./marketing-agent.yml:/app/marketing-agent.yml:ro
+
+  cron:
+    build: .
+    image: orallexa/marketing-agent:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MARKETING_AGENT_DB_PATH=/data/history.db
+      - MARKETING_AGENT_QUEUE=/data/queue
+      - MARKETING_AGENT_LOG=json
+    volumes:
+      - agent-data:/data
+      - ./marketing-agent.yml:/app/marketing-agent.yml:ro
+    # Simple cron loop — generate at 14:00 UTC daily, sleep otherwise.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          NOW=$$(date -u +%H%M)
+          if [ "$$NOW" = "1400" ]; then
+            python -m marketing_agent generate \
+              --name orallexa --tagline "Multi-agent AI trading system" \
+              --platforms x --to-queue
+          fi
+          sleep 60
+        done
+
+volumes:
+  agent-data:

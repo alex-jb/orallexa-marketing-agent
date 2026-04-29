@@ -1,0 +1,35 @@
+# marketing-agent.yml — configure the projects this agent markets.
+#
+# `daily.yml` (cron) reads this file. Each enabled project gets a daily
+# draft generated and committed to queue/pending/.
+#
+# Schema is intentionally minimal — see marketing_agent/multiproject.py
+# for the parser. Edit, push, and the next cron run picks it up.
+
+projects:
+  - name: Orallexa
+    repo: alex-jb/orallexa-ai-trading-agent
+    tagline: Self-tuning multi-agent AI trading system
+    description: Bull/Bear/Judge debate on Claude Opus 4.7. 8-source signal fusion. 922 tests. MIT.
+    website: https://orallexa-ui.vercel.app
+    platforms: [x]
+    tags: [multi-agent, trading, llm, langgraph, claude]
+    enabled: true
+
+  - name: VibeXForge
+    repo: alex-jb/vibex
+    tagline: Gamified growth platform for AI creators
+    description: Submit your AI project, Claude scores it across 5 dimensions, your project becomes a hero card that evolves Seed → Myth based on real traction.
+    website: https://vibexforge.com
+    platforms: [x]
+    tags: [gamification, ai-creators, growth, claude]
+    enabled: true
+
+  - name: Orallexa Marketing Agent
+    repo: alex-jb/orallexa-marketing-agent
+    tagline: AI marketing agent for OSS founders
+    description: Open-source Python SDK that turns any AI/OSS project into platform-specific marketing content and distributes it everywhere.
+    platforms: [x]
+    tags: [marketing, automation, ai-agent, oss]
+    # Self-marketing turned on — this agent markets itself.
+    enabled: true
