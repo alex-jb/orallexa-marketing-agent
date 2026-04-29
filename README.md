@@ -2,9 +2,9 @@
 
 **English** | [中文](README.zh-CN.md)
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen.svg)](#)
-[![Coverage](https://img.shields.io/badge/coverage-70%25-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-198%20passing-brightgreen.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-76%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -101,7 +101,8 @@ Roadmap:
 - [x] **v0.7** — real image generation (Pollinations / Flux schnell, free, no key) · X media upload (auto-attach generated image to tweets) · `image` CLI subcommand · `Post.image_url` field
 - [x] **v0.8** — Phoenix / OTel observability (opt-in `[observability]` extras) · DSPy signatures framework (4 typed Signatures, compilation hook ready) · PyPI build artifact + `publish-pypi.yml` workflow · `py.typed` marker
 - [x] **v0.9** — hardening sprint: reply_suggester 0%→81% coverage · X/Bluesky/Mastodon image upload mock tests · MCP tool integration tests · BM25 single-doc fix · shared critic min-score constant · CHANGELOG.md · CI floor 60%→70%
-- [ ] **v0.10** — DSPy compilation against engagement history · Imagen 4 / Nano Banana 2 paid tier · Streamlit queue UI · PyPI auto-publish on tag
+- [x] **v0.10** — Streamlit queue UI (`marketing-agent ui`, browser/phone-friendly) · scheduled posting (`scheduled_for` frontmatter + hourly cron + `marketing-agent schedule --best-time`) · CLI smoke tests (cli.py 0% → covered) · 198 tests, 76% coverage
+- [ ] **v0.11** — DSPy compilation against engagement history · Imagen 4 / Nano Banana 2 paid tier · PyPI auto-publish on tag · OAuth1 webhook receiver for X engagement
 - [ ] **v1.0** — open-source launch · YC application
 
 ---
