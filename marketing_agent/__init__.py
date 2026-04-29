@@ -11,12 +11,15 @@ from marketing_agent.engagement import EngagementTracker
 from marketing_agent.strategy import (
     LaunchPlan, LaunchAction, default_plan, llm_plan, write_plan,
 )
+from marketing_agent.bandit import VariantBandit
+from marketing_agent.best_time import optimal_post_time
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",
     "PostMemory", "CostTracker", "ApprovalQueue", "EngagementTracker",
     "build_thread_posts", "split_into_thread",
     "LaunchPlan", "LaunchAction", "default_plan", "llm_plan", "write_plan",
+    "VariantBandit", "optimal_post_time",
 ]

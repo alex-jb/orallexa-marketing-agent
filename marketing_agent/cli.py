@@ -42,7 +42,8 @@ def cmd_generate(args) -> int:
     orch = Orchestrator(mode=mode)
     posts = orch.generate(project,
                             [Platform(p) for p in args.platforms],
-                            subreddit=args.subreddit)
+                            subreddit=args.subreddit,
+                            n_variants=args.variants)
 
     if args.to_queue:
         q = ApprovalQueue()
@@ -134,9 +135,56 @@ def cmd_plan(args) -> int:
     project = Project(name=args.name, tagline=args.tagline,
                        description=args.description, tags=args.tags or [])
     use_llm = args.mode == "llm"
-    path = write_plan(project, days=args.days, use_llm=use_llm,
-                       out_dir=args.out_dir)
+    path = write_plan(project, days=args.days,
+                       ph_launch_day=args.ph_launch_day,
+                       use_llm=use_llm, out_dir=args.out_dir)
     print(f"📋 Plan written: {path}")
+    return 0
+
+
+def cmd_bandit(args) -> int:
+    """Inspect or update the variant bandit."""
+    from marketing_agent.bandit import VariantBandit
+    b = VariantBandit()
+    if args.action == "stats":
+        rows = b.stats()
+        if not rows:
+            print("(no arms yet — generate with --variants > 1 first)")
+            return 0
+        print(f"  {'variant':25s}  {'pulls':>5s}  {'mean':>6s}  {'α':>6s}  {'β':>6s}")
+        for r in rows:
+            print(f"  {r['variant_key']:25s}  {r['n_pulls']:>5d}  "
+                  f"{r['mean']:>6.3f}  {r['alpha']:>6.2f}  {r['beta']:>6.2f}")
+        return 0
+    if args.action == "update":
+        b.update(args.variant_key, reward=args.reward)
+        print(f"✓ updated {args.variant_key} with reward={args.reward}")
+        return 0
+    if args.action == "from-engagement":
+        r = b.update_from_engagement(args.variant_key, raw_engagement=args.engagement)
+        print(f"✓ updated {args.variant_key} with squashed reward={r:.3f} "
+              f"(from raw engagement {args.engagement})")
+        return 0
+    return 1
+
+
+def cmd_best_time(args) -> int:
+    """Show optimal post time per platform based on engagement history."""
+    from marketing_agent.best_time import optimal_post_time, report
+    weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    plat = Platform(args.platform)
+    wd, h, src = optimal_post_time(plat, project_name=args.project,
+                                     metric=args.metric,
+                                     min_samples=args.min_samples)
+    print(f"⏰ optimal post time for {plat.value}: "
+          f"{weekdays[wd]} {h:02d}:00 UTC  ({src})")
+    if args.verbose:
+        rows = report(plat, project_name=args.project, metric=args.metric)
+        if rows:
+            print("\n   weekday  hour  n  mean_reward")
+            for r in rows[:10]:
+                print(f"   {r['weekday']:7s}  {r['hour_utc']:02d}    "
+                      f"{r['n_samples']:2d}  {r['mean_reward']}")
     return 0
 
 
@@ -186,6 +234,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                     default=["x", "reddit", "linkedin"])
     g.add_argument("--subreddit", default=None)
     g.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
+    g.add_argument("--variants", type=int, default=1,
+                    help="Generate N stylistic variants per platform; "
+                         "bandit picks one (currently only X has multiple variants)")
     g.add_argument("--to-queue", action="store_true",
                     help="Send to approval queue instead of stdout")
     g.set_defaults(func=cmd_generate)
@@ -214,10 +265,39 @@ def main(argv: Optional[list[str]] = None) -> int:
     pl.add_argument("--tagline", required=True)
     pl.add_argument("--description", default=None)
     pl.add_argument("--tags", nargs="*", default=None)
-    pl.add_argument("--days", type=int, default=30)
+    pl.add_argument("--days", type=int, default=30,
+                     help="Plan duration. 30 / 60 / 90 supported.")
+    pl.add_argument("--ph-launch-day", type=int, default=0,
+                     help="Day offset of Product Hunt launch (default 0 = today). "
+                          "HN/Show HN/long-form retros schedule relative to this.")
     pl.add_argument("--mode", choices=["template", "llm"], default="template")
     pl.add_argument("--out-dir", default="docs")
     pl.set_defaults(func=cmd_plan)
+
+    bd = sub.add_parser("bandit", help="Inspect / train the variant bandit")
+    bd_sub = bd.add_subparsers(dest="action", required=True)
+    bd_sub.add_parser("stats", help="Show per-arm posterior")
+    bd_up = bd_sub.add_parser("update", help="Manually update an arm with a reward in [0,1]")
+    bd_up.add_argument("variant_key")
+    bd_up.add_argument("--reward", type=float, required=True)
+    bd_eng = bd_sub.add_parser("from-engagement",
+                                help="Update an arm from raw engagement count")
+    bd_eng.add_argument("variant_key")
+    bd_eng.add_argument("--engagement", type=float, required=True)
+    bd.set_defaults(func=cmd_bandit)
+
+    bt = sub.add_parser("best-time", help="Show optimal post time per platform")
+    bt.add_argument("--platform", required=True,
+                     choices=[p.value for p in Platform])
+    bt.add_argument("--project", default=None,
+                     help="Filter to a specific project (optional)")
+    bt.add_argument("--metric", default="like",
+                     help="Engagement metric to optimize (default: like)")
+    bt.add_argument("--min-samples", type=int, default=5,
+                     help="Min posts per bucket before trusting data over default")
+    bt.add_argument("--verbose", "-v", action="store_true",
+                     help="Print full hour-of-week table")
+    bt.set_defaults(func=cmd_best_time)
 
     r = sub.add_parser("replies", help="Generate reply drafts to your timeline")
     r.add_argument("--handles", nargs="+", required=True)

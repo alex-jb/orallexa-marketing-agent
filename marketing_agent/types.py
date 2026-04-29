@@ -64,6 +64,11 @@ class Post(BaseModel):
     in_reply_to: Optional[str] = Field(None,
                                          description="ID of post being replied to (for threads)")
     char_count: Optional[int] = Field(None, description="Rendered length")
+    variant_key: Optional[str] = Field(
+        None,
+        description="Stable identifier of the stylistic variant for bandit selection, "
+                    "e.g. 'x:emoji-led', 'x:question-led', 'reddit:value-first'.",
+    )
 
     def with_count(self) -> "Post":
         """Return a copy with char_count populated."""

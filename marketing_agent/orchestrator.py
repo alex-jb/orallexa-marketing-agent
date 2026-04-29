@@ -36,9 +36,15 @@ class Orchestrator:
         platforms: list[Platform],
         *,
         subreddit: Optional[str] = None,
+        n_variants: int = 1,
     ) -> list[Post]:
-        """Generate one Post per platform."""
-        return generate_posts(project, platforms, mode=self.mode, subreddit=subreddit)
+        """Generate one Post per platform.
+
+        n_variants > 1: produce N stylistic variants and pick one via bandit
+        (currently only X has multiple variants).
+        """
+        return generate_posts(project, platforms, mode=self.mode,
+                                subreddit=subreddit, n_variants=n_variants)
 
     def preview(self, post: Post) -> str:
         """Return the dry-run preview from the matching adapter."""

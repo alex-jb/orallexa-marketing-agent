@@ -8,9 +8,29 @@ from __future__ import annotations
 from marketing_agent.types import Platform, Post, Project
 
 
-def render_x(project: Project) -> Post:
-    """X / Twitter — short, attention-grabbing, link in body."""
-    parts = [f"🛠 {project.name} — {project.tagline}."]
+def render_x(project: Project, *, variant: str = "emoji-led") -> Post:
+    """X / Twitter — short, attention-grabbing, link in body.
+
+    Variants:
+      - emoji-led:    "🛠 Project — tagline. Latest: ..."
+      - question-led: "Ever wished X? Project does it. Latest: ..."
+      - stat-led:     "N commits, M tests. Project — tagline. ..."
+    """
+    if variant == "question-led":
+        opener = (f"What if {project.tagline.lower().rstrip('.')} just worked?\n\n"
+                  f"That's {project.name}.")
+    elif variant == "stat-led":
+        n_changes = len(project.recent_changes)
+        if n_changes:
+            opener = (f"{n_changes} change{'s' if n_changes != 1 else ''} this week. "
+                       f"{project.name} — {project.tagline}.")
+        else:
+            opener = f"{project.name} — {project.tagline}."
+    else:  # emoji-led (default)
+        variant = "emoji-led"
+        opener = f"🛠 {project.name} — {project.tagline}."
+
+    parts = [opener]
     if project.recent_changes:
         latest = project.recent_changes[0]
         parts.append(f"Latest: {latest[:120]}")
@@ -19,7 +39,11 @@ def render_x(project: Project) -> Post:
     body = "\n\n".join(parts)
     if len(body) > 280:
         body = body[:277] + "..."
-    return Post(platform=Platform.X, body=body).with_count()
+    return Post(platform=Platform.X, body=body,
+                  variant_key=f"x:{variant}").with_count()
+
+
+X_VARIANTS = ("emoji-led", "question-led", "stat-led")
 
 
 def render_reddit(project: Project, subreddit: str | None = None) -> Post:
@@ -87,8 +111,9 @@ def render_dev_to(project: Project) -> Post:
 
 def render(platform: Platform, project: Project, **kwargs) -> Post:
     """Dispatch to the right template by platform."""
+    if platform == Platform.X:
+        return render_x(project, variant=kwargs.get("variant", "emoji-led"))
     fn = {
-        Platform.X: render_x,
         Platform.REDDIT: lambda p: render_reddit(p, kwargs.get("subreddit")),
         Platform.LINKEDIN: render_linkedin,
         Platform.DEV_TO: render_dev_to,
@@ -100,3 +125,17 @@ def render(platform: Platform, project: Project, **kwargs) -> Post:
             body=f"{project.name}: {project.tagline}\n\n{project.github_url or ''}".strip(),
         ).with_count()
     return fn(project)
+
+
+def render_variants(platform: Platform, project: Project,
+                     n: int = 3, **kwargs) -> list[Post]:
+    """Return up to N stylistic variants of the same post.
+
+    Currently only X has multiple variants; other platforms return a list
+    with a single post (variant_key None) so the bandit treats them as
+    single-arm.
+    """
+    if platform == Platform.X:
+        chosen = X_VARIANTS[:max(1, min(n, len(X_VARIANTS)))]
+        return [render_x(project, variant=v) for v in chosen]
+    return [render(platform, project, **kwargs)]

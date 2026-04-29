@@ -24,7 +24,7 @@ from marketing_agent.types import Platform, Project
 
 class LaunchAction(BaseModel):
     """One scheduled action in the launch plan."""
-    day: int = Field(..., ge=0, le=60, description="Day offset from launch (0 = launch day)")
+    day: int = Field(..., ge=0, le=90, description="Day offset from launch anchor (0 = launch day)")
     platform: Platform
     kind: str = Field(..., description="post / thread / reply_burst / engage")
     topic: str = Field(..., max_length=200, description="What to talk about")
@@ -36,16 +36,24 @@ class LaunchPlan(BaseModel):
     project_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     duration_days: int = 30
+    ph_launch_day: int = Field(
+        0,
+        description="Day offset where Product Hunt launch happens. HN and "
+                    "long-form follow-ups schedule relative to this.",
+    )
     actions: list[LaunchAction]
 
     def to_markdown(self) -> str:
         out = [f"# Launch plan — {self.project_name}",
-               f"\n*Generated {self.created_at.date().isoformat()} · {self.duration_days} days*\n"]
+               f"\n*Generated {self.created_at.date().isoformat()} · "
+               f"{self.duration_days} days · PH anchor day {self.ph_launch_day}*\n"]
         actions_by_day: dict[int, list[LaunchAction]] = {}
         for a in self.actions:
             actions_by_day.setdefault(a.day, []).append(a)
         for day in sorted(actions_by_day):
-            out.append(f"\n## Day {day}")
+            rel = day - self.ph_launch_day
+            rel_label = f" / PH{rel:+d}" if self.ph_launch_day else ""
+            out.append(f"\n## Day {day}{rel_label}")
             for a in actions_by_day[day]:
                 out.append(f"\n- **{a.platform.value} · {a.kind}** — {a.topic}")
                 if a.target:
@@ -55,60 +63,118 @@ class LaunchPlan(BaseModel):
         return "\n".join(out)
 
 
-def default_plan(project: Project, *, days: int = 30) -> LaunchPlan:
-    """A reasonable default schedule when no LLM key set."""
+def default_plan(project: Project, *, days: int = 30,
+                  ph_launch_day: int = 0) -> LaunchPlan:
+    """A reasonable default schedule when no LLM key set.
+
+    Args:
+        days: total plan duration. Supports 30 / 60 / 90.
+        ph_launch_day: day offset of Product Hunt launch (default 0 = today).
+            HN, Show HN, and long-form retros schedule relative to PH because
+            HN values "validated on PH first" narratives over rough launches.
+    """
+    ph = ph_launch_day
     actions = [
-        LaunchAction(day=0, platform=Platform.X, kind="thread",
+        # ─── Pre-PH ramp (only if ph_launch_day > 0) ─────────────────
+        *([LaunchAction(day=max(0, ph - 7), platform=Platform.X, kind="post",
+                          topic=f"Coming soon: {project.name} — PH launch in 1 week",
+                          rationale="Pre-PH teaser builds the warm audience that votes")]
+          if ph > 0 else []),
+        *([LaunchAction(day=max(0, ph - 1), platform=Platform.X, kind="post",
+                          topic=f"PH launch tomorrow — last call to follow",
+                          rationale="Day-before reminder; PH morning reach hinges on this")]
+          if ph > 0 else []),
+
+        # ─── PH launch day ───────────────────────────────────────────
+        LaunchAction(day=ph, platform=Platform.X, kind="thread",
                      topic=f"Launch announcement: {project.name}",
-                     rationale="Day 0 anchor; thread because more content drives more reach"),
-        LaunchAction(day=0, platform=Platform.LINKEDIN, kind="post",
+                     rationale="PH-day anchor; thread because more content drives more reach"),
+        LaunchAction(day=ph, platform=Platform.LINKEDIN, kind="post",
                      topic=f"Launch announcement: {project.name}",
                      rationale="LinkedIn launch covers professional network"),
-        LaunchAction(day=1, platform=Platform.REDDIT, kind="post",
+
+        # ─── PH+1 to PH+5: organic spread ───────────────────────────
+        LaunchAction(day=ph + 1, platform=Platform.REDDIT, kind="post",
                      topic="Show r/* — tell the build story",
                      target="MachineLearning",
-                     rationale="Reddit tomorrow, not today, to avoid burnout"),
-        LaunchAction(day=2, platform=Platform.REDDIT, kind="post",
+                     rationale="Reddit day after PH avoids competing with PH window"),
+        LaunchAction(day=ph + 2, platform=Platform.REDDIT, kind="post",
                      topic="Different subreddit, different framing",
                      target="programming",
                      rationale="2nd subreddit — but different headline + body"),
-        LaunchAction(day=3, platform=Platform.X, kind="thread",
+        LaunchAction(day=ph + 3, platform=Platform.X, kind="thread",
                      topic="Behind-the-scenes / technical deep dive",
                      rationale="Day 3 reactivates dormant followers"),
-        LaunchAction(day=5, platform=Platform.DEV_TO, kind="post",
+        LaunchAction(day=ph + 5, platform=Platform.DEV_TO, kind="post",
                      topic="Long-form post mortem / how it works",
                      rationale="DEV.to is patient and SEO-friendly"),
-        LaunchAction(day=7, platform=Platform.X, kind="post",
-                     topic="Week 1 retro — lessons learned",
-                     rationale="Build-in-public weekly cadence"),
-        LaunchAction(day=10, platform=Platform.HACKER_NEWS, kind="post",
-                     topic="Show HN — best time after week 1 lessons",
-                     rationale="HN rewards refined narratives over rough launches"),
-        LaunchAction(day=14, platform=Platform.X, kind="thread",
+
+        # ─── PH+7 to PH+14: HN window (after PH metrics exist) ──────
+        LaunchAction(day=ph + 7, platform=Platform.X, kind="post",
+                     topic="Week 1 retro — lessons learned + PH numbers",
+                     rationale="Build-in-public weekly cadence; use real PH metrics"),
+        LaunchAction(day=ph + 10, platform=Platform.HACKER_NEWS, kind="post",
+                     topic="Show HN — built it, validated on PH, here's what worked",
+                     rationale="HN rewards refined narratives with PH receipts attached"),
+        LaunchAction(day=ph + 14, platform=Platform.X, kind="thread",
                      topic="Week 2 retro + numbers + asks",
                      rationale="Mid-month status update"),
-        LaunchAction(day=21, platform=Platform.X, kind="post",
-                     topic="Week 3 lesson — pick one tactic that worked, one that didn't",
+
+        # ─── PH+21 to PH+28: month-1 retro ──────────────────────────
+        LaunchAction(day=min(ph + 21, days - 1), platform=Platform.X, kind="post",
+                     topic="Week 3 lesson — what worked, what didn't",
                      rationale="Honest content compounds trust"),
-        LaunchAction(day=28, platform=Platform.LINKEDIN, kind="post",
+        LaunchAction(day=min(ph + 28, days - 1), platform=Platform.LINKEDIN, kind="post",
                      topic="Month 1 retrospective — metrics + what's next",
                      rationale="LinkedIn rewards 30-day retros"),
     ]
+
+    # ─── Long-tail (60/90-day plans) ─────────────────────────────
+    if days >= 60:
+        actions.extend([
+            LaunchAction(day=min(ph + 35, days - 1), platform=Platform.X, kind="post",
+                          topic="Customer story / case study from a real user",
+                          rationale="Social proof is the easiest week-5 win"),
+            LaunchAction(day=min(ph + 45, days - 1), platform=Platform.DEV_TO, kind="post",
+                          topic="Deep technical post — architecture decisions",
+                          rationale="Long-tail SEO; ranks for months"),
+            LaunchAction(day=min(ph + 56, days - 1), platform=Platform.LINKEDIN, kind="post",
+                          topic="Month 2 retrospective — metrics + lessons",
+                          rationale="Cadence: monthly retros build founder authority"),
+        ])
+    if days >= 90:
+        actions.extend([
+            LaunchAction(day=min(ph + 70, days - 1), platform=Platform.X, kind="thread",
+                          topic="Quarter 1 milestone thread — the journey so far",
+                          rationale="Quarterly milestones make great evergreen content"),
+            LaunchAction(day=min(ph + 84, days - 1), platform=Platform.LINKEDIN, kind="post",
+                          topic="Q1 review — revenue/users/learnings",
+                          rationale="Quarterly retros build sustained credibility"),
+        ])
+
     return LaunchPlan(
         project_name=project.name,
         duration_days=days,
+        ph_launch_day=ph_launch_day,
         actions=actions,
     )
 
 
-def llm_plan(project: Project, *, days: int = 30) -> LaunchPlan:
-    """Use Claude to draft a custom plan. Falls back to default on any failure."""
+def llm_plan(project: Project, *, days: int = 30,
+              ph_launch_day: int = 0) -> LaunchPlan:
+    """Use Claude to draft a custom plan. Falls back to default on any failure.
+
+    Uses claude-haiku-4-5 — generating 8-15 short JSON actions doesn't need
+    Sonnet's reasoning; Haiku is ~4x cheaper and 2x faster.
+    """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return default_plan(project, days=days)
+        return default_plan(project, days=days, ph_launch_day=ph_launch_day)
 
     try:
         from anthropic import Anthropic
 
+        ph = ph_launch_day
+        n_actions = 8 + (days // 30) * 4  # 12 for 60-day, 16 for 90-day
         prompt = f"""You are a launch strategist for an indie OSS / AI project. Output a {days}-day launch plan as STRICT JSON.
 
 Project:
@@ -117,6 +183,10 @@ Project:
   description: {project.description or '(none)'}
   target audience: {project.target_audience or 'OSS / AI builders'}
   tags: {', '.join(project.tags) if project.tags else '(none)'}
+
+Launch context:
+  Total plan duration: {days} days
+  Product Hunt launch day: {ph} (0 means today; if >0, plan pre-PH ramp)
 
 Output JSON shape:
 {{
@@ -133,19 +203,21 @@ Output JSON shape:
 }}
 
 Rules:
-- Generate 8-15 actions across the {days} days
-- Day 0 = launch day; max day = {days - 1}
-- Don't burst the same platform 3x in 2 days (looks spammy)
-- Reddit posts go in different subreddits, with platform-tuned framings
-- HN should NOT be on day 0 (rough launches die on HN); aim for day 7-14
-- Mix posts, threads, and reply_burst (engage with others' posts)
+- Generate {n_actions - 2}-{n_actions + 3} actions across {days} days
+- day must satisfy 0 <= day <= {days - 1}
+- PH launch is day {ph}. Plan teaser/reminder posts BEFORE day {ph} if ph > 0
+- HN should be 7-14 days AFTER PH launch (need PH metrics first; HN rewards "validated on PH" narratives over rough launches)
+- Don't burst the same platform 3x in 2 days
+- Reddit posts go in different subreddits with different framings
+- For 60+ day plans: include long-tail content (case studies, deep technical posts, monthly retros)
+- For 90+ day plans: add quarterly milestone posts
 - Each rationale ≤ 200 chars and explains the timing+platform choice
 
 Output ONLY the JSON, no preamble."""
 
         client = Anthropic()
         resp = client.messages.create(
-            model="claude-sonnet-4-6", max_tokens=2000,
+            model="claude-haiku-4-5", max_tokens=2500,
             messages=[{"role": "user", "content": prompt}],
         )
         text = "".join(b.text for b in resp.content if b.type == "text").strip()
@@ -160,17 +232,22 @@ Output ONLY the JSON, no preamble."""
         return LaunchPlan(
             project_name=project.name,
             duration_days=days,
+            ph_launch_day=ph_launch_day,
             actions=actions,
         )
     except Exception:
-        return default_plan(project, days=days)
+        return default_plan(project, days=days, ph_launch_day=ph_launch_day)
 
 
 def write_plan(project: Project, *, days: int = 30,
+                ph_launch_day: int = 0,
                 use_llm: bool = True, out_dir: Optional[str] = None) -> str:
     """Generate a plan and write it to docs/launch_plan_*.md. Return the path."""
     from pathlib import Path
-    plan = llm_plan(project, days=days) if use_llm else default_plan(project, days=days)
+    if use_llm:
+        plan = llm_plan(project, days=days, ph_launch_day=ph_launch_day)
+    else:
+        plan = default_plan(project, days=days, ph_launch_day=ph_launch_day)
     target = Path(out_dir) if out_dir else Path("docs")
     target.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^a-z0-9]+", "-", project.name.lower()).strip("-")

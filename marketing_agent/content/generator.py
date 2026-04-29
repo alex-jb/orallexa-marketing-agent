@@ -15,16 +15,26 @@ def generate_posts(
     mode: GenerationMode = GenerationMode.HYBRID,
     *,
     subreddit: Optional[str] = None,
+    n_variants: int = 1,
 ) -> list[Post]:
     """Generate one Post per platform.
 
     HYBRID (default): try Claude when ANTHROPIC_API_KEY is set; on any failure
     or when key is missing, fall back to deterministic templates.
+
+    n_variants > 1: for platforms that support multiple stylistic variants
+    (currently only X), generate that many variants per platform; the bandit
+    chooses one. Other platforms ignore n_variants and always return one post.
     """
     out: list[Post] = []
     for p in platforms:
         if mode == GenerationMode.TEMPLATE or not os.getenv("ANTHROPIC_API_KEY"):
-            out.append(templates.render(p, project, subreddit=subreddit))
+            if n_variants > 1:
+                variants = templates.render_variants(p, project, n=n_variants,
+                                                       subreddit=subreddit)
+                out.append(_pick_with_bandit(variants))
+            else:
+                out.append(templates.render(p, project, subreddit=subreddit))
             continue
 
         try:
@@ -32,8 +42,29 @@ def generate_posts(
         except Exception:
             if mode == GenerationMode.LLM:
                 raise  # caller asked for LLM-only; don't silently downgrade
-            out.append(templates.render(p, project, subreddit=subreddit))
+            if n_variants > 1:
+                variants = templates.render_variants(p, project, n=n_variants,
+                                                       subreddit=subreddit)
+                out.append(_pick_with_bandit(variants))
+            else:
+                out.append(templates.render(p, project, subreddit=subreddit))
     return out
+
+
+def _pick_with_bandit(variants: list[Post]) -> Post:
+    """Pick one variant via Thompson sampling. Falls back to first on errors."""
+    keys = [v.variant_key for v in variants if v.variant_key]
+    if not keys:
+        return variants[0]
+    try:
+        from marketing_agent.bandit import VariantBandit
+        chosen_key = VariantBandit().choose(keys)
+        for v in variants:
+            if v.variant_key == chosen_key:
+                return v
+    except Exception:
+        pass
+    return variants[0]
 
 
 def _generate_with_llm(
