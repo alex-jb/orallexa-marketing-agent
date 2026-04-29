@@ -78,6 +78,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Self-heal: ensure the "queue" label exists (idempotent).
+          gh label create queue \
+            --description "Items waiting for human review in the approval queue" \
+            --color fbca04 2>/dev/null || true
+
           DATE=$(date -u +%Y-%m-%d)
           BODY=$(cat <<EOF
           📥 ${{ steps.gen.outputs.queued_count }} draft(s) waiting for review.
@@ -100,4 +105,4 @@ jobs:
           See [queue/pending/](../tree/main/queue/pending) for drafts.
           EOF
           )
-          gh issue create --title "📥 Daily drafts ready for review — $DATE" --body "$BODY" --label "queue" || true
+          gh issue create --title "📥 Daily drafts ready for review — $DATE" --body "$BODY" --label "queue"
