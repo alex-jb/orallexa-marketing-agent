@@ -1,7 +1,8 @@
 # Orallexa Marketing Agent
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-67%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen.svg)](#)
+[![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-X%20%7C%20Reddit%20%7C%20LinkedIn%20%7C%20Dev.to%20%7C%20Bluesky%20%7C%20Mastodon%20%7C%20%E7%9F%A5%E4%B9%8E%20%7C%20%E5%B0%8F%E7%BA%A2%E4%B9%A6-purple.svg)](#)
@@ -68,18 +69,21 @@ To enable LLM-quality content, add an Anthropic key to `.env`. To actually post,
 
 ---
 
-## Status — v0.4.0
+## Status — v0.5.0
 
 What works today:
 
 | Layer | Capability |
 |---|---|
-| **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester · **N stylistic variants per platform** |
-| **Platforms** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Dev.to (markdown) · LinkedIn (dry-run) · 知乎/小红书 (Phase 3 — Playwright) |
-| **Workflow** | HITL approval queue (markdown files, Obsidian-friendly) · SQLite dedup · cost tracker (Anthropic + X per-post) · GitHub Actions HITL pipeline (draft.yml + publish.yml) |
-| **Strategy** | LaunchPlan generator (30/60/90-day, **Product-Hunt-relative timing**) · reply-draft suggester (scan handles → filter → draft) |
-| **Analytics** | EngagementTracker pulls X metrics · **best-time-to-post** (hour-of-week empirical CDF) · **variant bandit** (Thompson sampling Beta posterior) |
-| **Integrations** | VibeXForge sister-product event push · **MCP server** (`marketing-agent-mcp`) — invoke from Claude Code / Desktop / Cursor / Zed |
+| **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester · N stylistic variants per platform |
+| **Platforms** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Dev.to (markdown) · LinkedIn (dry-run) · 知乎/小红书 (Phase 3) |
+| **Quality gate** | **Heuristic + LLM critic** (auto-rejects hype/spam/length-fail before queuing) · **semantic dedup** (sentence-transformers MiniLM, Voyage-3 when keyed) — never repost a paraphrase |
+| **Reliability** | **Exponential-backoff retry** on all platform adapters (transient errors, 429, 5xx) · **structured JSON logs** (Langfuse-compatible) |
+| **Workflow** | HITL approval queue · 3 GitHub Actions: `daily.yml` (cron) · `release-announce.yml` (release event → drafts) · `publish.yml` (approval → real post) |
+| **Strategy** | LaunchPlan generator (30/60/90-day, Product-Hunt-relative timing) · reply-draft suggester · variant bandit (Thompson sampling) · best-time-to-post (hour-of-week CDF) |
+| **Analytics** | EngagementTracker pulls X metrics · cost tracker (Anthropic + X per-post) · SQLite single-file storage |
+| **Integrations** | VibeXForge sister-product event push · **MCP server** (`marketing-agent-mcp`) — Claude Code / Desktop / Cursor / Zed |
+| **CI** | GitHub Actions test matrix (Python 3.11/3.12) · pytest-cov 70%+ floor · Codecov upload |
 
 CLI: `generate · post · queue · history · cost · plan · bandit · best-time · replies · engage` — 10 subcommands.
 
@@ -87,8 +91,9 @@ Roadmap:
 - [x] **v0.1** — scaffold, X / Reddit / LinkedIn stubs
 - [x] **v0.2** — memory + threads + queue + cost + Bluesky + Mastodon + CLI
 - [x] **v0.3** — reply suggester + engagement tracker + launch planner + 知乎/小红书 stubs + VibeXForge + image prompts
-- [x] **v0.4** — variant bandit (Thompson sampling) · best-time-to-post analyzer · MCP server · 60/90-day launch plans · PH-launch-relative timing
-- [ ] **v0.5** — LangGraph supervisor + Reflexion critic loop · semantic dedup (Voyage embeddings) · GitHub release → auto-post webhook · PyPI release
+- [x] **v0.4** — variant bandit · best-time-to-post · MCP server · 60/90-day plans · PH-launch-relative timing
+- [x] **v0.5** — critic gate + semantic dedup + retries + structured logging + GitHub release webhook + CI
+- [ ] **v0.6** — LangGraph supervisor (reflexion loop) · PyPI release · Docker image
 - [ ] **v1.0** — open-source launch · YC application
 
 ---

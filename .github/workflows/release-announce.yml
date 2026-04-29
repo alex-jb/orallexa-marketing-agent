@@ -1,0 +1,118 @@
+name: Release announce — auto-draft thread on GitHub Release
+
+# Triggered when you publish a GitHub Release. The agent reads the release
+# notes + tag, builds a Project payload, and drops a multi-platform thread
+# of drafts into queue/pending/ for your review. You approve via:
+#   git mv queue/pending/<file>.md queue/approved/<file>.md && git push
+# (publish.yml then sends them out.)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to draft for (e.g. v0.5.0)"
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  draft-release-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Resolve tag + release notes
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          REPO="${{ github.repository }}"
+          NOTES=$(gh release view "$TAG" --repo "$REPO" --json body --jq '.body' | head -c 2000)
+          # Pull headline bullets (best-effort) — first 5 markdown bullets
+          CHANGES=$(echo "$NOTES" | grep -E '^[*-] ' | head -5 | sed 's/^[*-] //')
+          {
+            echo "tag=$TAG"
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+            echo "changes<<EOF"
+            echo "$CHANGES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate release-announce drafts → queue/pending/
+        id: gen
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MARKETING_AGENT_QUEUE: ${{ github.workspace }}/queue
+        run: |
+          # Collect changes into newline-separated args.
+          CHANGES_ARRAY=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && CHANGES_ARRAY+=("$line")
+          done <<< "${{ steps.rel.outputs.changes }}"
+
+          PYTHONPATH=. python3 -m marketing_agent generate \
+            --name "${{ github.event.repository.name }}" \
+            --tagline "Release ${{ steps.rel.outputs.tag }} of ${{ github.event.repository.name }}" \
+            --description "Release notes: $(echo '${{ steps.rel.outputs.notes }}' | head -c 600)" \
+            --github "https://github.com/${{ github.repository }}" \
+            --platforms x bluesky mastodon \
+            --mode hybrid \
+            --variants 3 \
+            --to-queue \
+            ${CHANGES_ARRAY[@]+--changes "${CHANGES_ARRAY[@]}"}
+
+      - name: Commit drafts to queue/pending/
+        run: |
+          git config user.name  "marketing-agent-bot"
+          git config user.email "marketing-agent-bot@users.noreply.github.com"
+          git add queue/
+          if git diff --cached --quiet; then
+            echo "No drafts produced (gate may have rejected all variants)."
+            exit 0
+          fi
+          git commit -m "chore(queue): release-announce drafts for ${{ steps.rel.outputs.tag }}"
+          git push
+
+      - name: Open notification issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create queue --description "Approval queue items" --color fbca04 2>/dev/null || true
+          gh label create release-announce --description "Posts about a release" --color 0e8a16 2>/dev/null || true
+          BODY=$(cat <<EOF
+          🚀 Release **${{ steps.rel.outputs.tag }}** drafted.
+
+          Drafts in [queue/pending/](../tree/main/queue/pending). Approve to publish:
+
+          \`\`\`bash
+          git pull
+          git mv queue/pending/<file>.md queue/approved/<file>.md
+          git commit -m "approve: release ${{ steps.rel.outputs.tag }}" && git push
+          \`\`\`
+
+          Skipped low-quality variants land in queue/rejected/ with a \`gate_note:\`.
+          EOF
+          )
+          gh issue create \
+            --title "🚀 Release ${{ steps.rel.outputs.tag }} drafts ready" \
+            --body "$BODY" \
+            --label "queue,release-announce" || true

@@ -41,14 +41,68 @@ class ApprovalQueue:
             (self.root / sub).mkdir(parents=True, exist_ok=True)
 
     def submit(self, post: Post, project_name: str,
-                generated_by: str = "auto") -> Path:
-        """Write a post into pending/, return its path."""
+                generated_by: str = "auto", *,
+                gate: bool = True,
+                min_score: float = 4.0,
+                dedup_threshold: float = 0.92) -> Path:
+        """Write a post into pending/ (or rejected/ if it fails the gate).
+
+        Args:
+            gate: When True, run critic + semantic-dedup before queuing.
+                  Failing drafts go to rejected/ with reason in frontmatter.
+                  Pass gate=False to bypass (e.g. for unit tests).
+            min_score: Critic score below this → auto-reject.
+            dedup_threshold: Cosine sim above this → auto-reject as near-dup.
+
+        Returns the path of the saved file (in pending/ or rejected/).
+        """
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = re.sub(r"[^a-z0-9]+", "-", project_name.lower()).strip("-")
         fname = f"{ts}-{slug}-{post.platform.value}.md"
-        path = self.root / "pending" / fname
-        path.write_text(self._render(post, project_name, generated_by))
+
+        gate_note: Optional[str] = None
+        target_dir = "pending"
+        if gate:
+            try:
+                from marketing_agent.critic import critique
+                from marketing_agent.semantic_dedup import SemanticDedupIndex
+                from marketing_agent.memory import _hash
+
+                crit = critique(post, project_name=project_name,
+                                  min_score=min_score, use_llm=True)
+                if crit.auto_reject:
+                    gate_note = (f"auto-rejected by critic (score {crit.score}/10): "
+                                  f"{'; '.join(crit.reasons) or 'low quality'}")
+                    target_dir = "rejected"
+                else:
+                    idx = SemanticDedupIndex(db_path=self._db_path_for_dedup())
+                    is_dup, near = idx.is_near_duplicate(
+                        post.body, project_name=project_name,
+                        platform=post.platform, threshold=dedup_threshold,
+                    )
+                    if is_dup and near:
+                        gate_note = (f"auto-rejected as near-duplicate "
+                                      f"(sim {near['similarity']}): "
+                                      f"{near['body_preview'][:80]}")
+                        target_dir = "rejected"
+                    else:
+                        # Index this post for future dedup checks
+                        idx.add(_hash(post), post.body,
+                                  project_name=project_name,
+                                  platform=post.platform)
+            except Exception:
+                # Gate must never block submission on its own bugs;
+                # log and pass through.
+                pass
+
+        path = self.root / target_dir / fname
+        path.write_text(self._render(post, project_name, generated_by, gate_note))
         return path
+
+    @staticmethod
+    def _db_path_for_dedup():
+        from marketing_agent.memory import _default_db_path
+        return _default_db_path()
 
     def list_approved(self) -> list[Path]:
         """Return paths of posts approved by the human, ready to publish."""
@@ -93,7 +147,8 @@ class ApprovalQueue:
 
     # ───────────────────── internals ─────────────────────
 
-    def _render(self, post: Post, project_name: str, generated_by: str) -> str:
+    def _render(self, post: Post, project_name: str, generated_by: str,
+                  gate_note: Optional[str] = None) -> str:
         front = [
             "---",
             f"platform: {post.platform.value}",
@@ -105,7 +160,11 @@ class ApprovalQueue:
             front.append(f"title: {self._yaml_escape(post.title)}")
         if post.target:
             front.append(f"target: {post.target}")
+        if post.variant_key:
+            front.append(f"variant_key: {post.variant_key}")
         front.append(f"char_count: {post.char_count or len(post.body)}")
+        if gate_note:
+            front.append(f"gate_note: {self._yaml_escape(gate_note)}")
         front.append("---")
         return "\n".join(front) + "\n" + post.body + "\n"
 

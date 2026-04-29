@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 
+from marketing_agent.retry import retry_on_transient
 from marketing_agent.types import Platform, Post
 from marketing_agent.platforms.base import NotConfigured
 
@@ -25,6 +26,7 @@ class XAdapter:
             f"--- end ---"
         )
 
+    @retry_on_transient(attempts=3, base_delay=2.0)
     def post(self, post: Post) -> str:
         if not self.is_configured():
             raise NotConfigured(

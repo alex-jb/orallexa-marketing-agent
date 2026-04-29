@@ -13,8 +13,12 @@ from marketing_agent.strategy import (
 )
 from marketing_agent.bandit import VariantBandit
 from marketing_agent.best_time import optimal_post_time
+from marketing_agent.critic import critique, heuristic_score
+from marketing_agent.semantic_dedup import SemanticDedupIndex
+from marketing_agent.retry import retry_on_transient
+from marketing_agent.logging import get_logger
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",
@@ -22,4 +26,6 @@ __all__ = [
     "build_thread_posts", "split_into_thread",
     "LaunchPlan", "LaunchAction", "default_plan", "llm_plan", "write_plan",
     "VariantBandit", "optimal_post_time",
+    "critique", "heuristic_score", "SemanticDedupIndex",
+    "retry_on_transient", "get_logger",
 ]
