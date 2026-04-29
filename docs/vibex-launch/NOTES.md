@@ -8,7 +8,20 @@
 ## Files
 
 - `launch_plan_vibexforge_20260429.md` — 30-day playbook with PH-relative timing
-- `drafts/pending/*.md` — per-platform drafts: X, Bluesky, Mastodon, LinkedIn, Dev.to
+- `drafts/pending/*.md` — **template-mode** per-platform drafts (auto-generated, generic)
+- `polished/*.md` — **human-polished** versions referencing real VibeX features (use these)
+
+## ⭐ Use these polished drafts (not the template ones)
+
+| When | File | Where to post |
+|---|---|---|
+| **Today, PH-2** (4/29 ~6pm EDT) | `polished/x-ph-2-teaser.md` | X — pick variant A or B |
+| **Tomorrow, PH-1** (4/30 ~6pm EDT) | `polished/x-ph-1-reminder.md` | X — pick variant A or B |
+| **PH-day** (5/1 ~9am EDT, peak window) | `polished/x-thread-ph-day.md` | X — full 5-tweet thread |
+| **PH-day** | `polished/bluesky-ph-day.md` | Bluesky |
+| **PH-day** | `polished/mastodon-ph-day.md` | Mastodon |
+| **PH-day** | `polished/linkedin-ph-day.md` | LinkedIn (acknowledges 4/26 soft-launch) |
+| **PH-day** | `polished/jike-ph-day.md` | 即刻 (natural Chinese voice, not translate) |
 
 ## Status of each draft
 
