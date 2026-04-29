@@ -46,6 +46,8 @@ def app() -> None:
     import streamlit as st
     from marketing_agent.queue import _FRONTMATTER_RE
     from marketing_agent.queue import ApprovalQueue
+    from marketing_agent.preference import PreferenceStore
+    from marketing_agent.types import Platform
 
     st.set_page_config(page_title="Marketing Agent · Queue",
                          page_icon="📥", layout="wide")
@@ -98,7 +100,16 @@ def app() -> None:
                 if status == "pending":
                     if st.button("✅ Approve", key=f"approve-{path.name}"):
                         if edited.strip() != body.strip():
-                            # Persist body edits before moving
+                            # ICPL: log the edit before moving (preference signal)
+                            try:
+                                PreferenceStore().record(
+                                    project_name=meta.get("project", "unknown"),
+                                    platform=Platform(meta.get("platform", "x")),
+                                    original_body=body.strip(),
+                                    edited_body=edited.strip(),
+                                )
+                            except Exception:
+                                pass
                             new_text = f"---\n{meta_str}\n---\n{edited.strip()}\n"
                             path.write_text(new_text)
                         new_path = q.root / "approved" / path.name
@@ -112,9 +123,19 @@ def app() -> None:
                         st.rerun()
                 if edited.strip() != body.strip() and status != "posted":
                     if st.button("💾 Save edits", key=f"save-{path.name}"):
+                        # ICPL: log the edit as preference signal
+                        try:
+                            PreferenceStore().record(
+                                project_name=meta.get("project", "unknown"),
+                                platform=Platform(meta.get("platform", "x")),
+                                original_body=body.strip(),
+                                edited_body=edited.strip(),
+                            )
+                        except Exception:
+                            pass
                         new_text = f"---\n{meta_str}\n---\n{edited.strip()}\n"
                         path.write_text(new_text)
-                        st.success("Saved.")
+                        st.success("Saved (logged as preference signal).")
                         st.rerun()
 
 

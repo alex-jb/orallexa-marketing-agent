@@ -25,7 +25,7 @@ from marketing_agent.dspy_signatures import (
     get_signatures, list_signatures, is_dspy_available,
 )
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",

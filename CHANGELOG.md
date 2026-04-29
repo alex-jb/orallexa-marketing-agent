@@ -2,6 +2,24 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.0] — 2026-04-30
+
+**Frontier upgrades surfaced by Q1-Q2 2026 SOTA research.**
+
+### Added
+- `marketing_agent.preference` — **In-Context Preference Learning (ICPL)** from human edits. SQLite `edits` table logs `(original_body, edited_body, edit_ratio)` whenever the human saves a body change in the Streamlit UI. The LLM generator pulls last 5 high-ratio edits as few-shot exemplars. No fine-tuning. Per Q1 2026 ICPL paper: cheaper than DPO/LoRA below ~500 pairs. 12 tests.
+- `marketing_agent.ensemble_critic` — **Multi-LLM ensemble critic** via LiteLLM. Optional fanout to Claude + GPT-5 + Gemini; majority-vote on `auto_reject`, harshest score wins. Catches model-specific blind spots. Graceful fallback ladder (3 → 2 → 1 → heuristic). 8 tests.
+- `marketing_agent.supervisor` — **Self-consistency-3** for short-form platforms (X / Bluesky / Mastodon). Off by default; opt-in via `use_self_consistency=True`. Per Q1 2026 paper: ~80% of Tree-of-Thoughts lift at 25% the cost on short content.
+- `marketing_agent.listeners.bluesky_firehose` — **Free real-time engagement stream** via AT Protocol's public WebSocket firehose. Records likes / reposts / replies into `EngagementTracker` as they happen. Replaces the (unaffordable, $42k/yr) X Account Activity API. New script `marketing-agent-firehose-bsky`. 8 tests.
+
+### Optional dependencies
+- `[ensemble]` — `litellm>=1.55` for multi-LLM critic fanout
+- `[firehose]` — `atproto>=0.0.55` for Bluesky firehose
+
+### Tests + coverage
+- 198 → **228 tests** (+30)
+- Coverage 76% → **75%** (slight regression as new modules' optional-dep paths can't run in CI without the optional packages installed)
+
 ## [0.10.0] — 2026-04-30
 
 **UX + scheduling — make the queue phone-friendly and time-aware.**
@@ -119,6 +137,7 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.11.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.11.0
 [0.10.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.10.0
 [0.9.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.9.0
 [0.8.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.8.0

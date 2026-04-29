@@ -201,6 +201,43 @@ def _try_agent_sdk(project: Project, platform: Platform, *,
         return None
 
 
+# Platforms where self-consistency-3 has the best ROI: short-form posts
+# where a single chosen draft must carry the message. Per Q1 2026 paper,
+# self-consistency-3 captures ~80% of Tree-of-Thoughts lift at 25% the cost.
+_SHORT_FORM = (Platform.X, Platform.BLUESKY, Platform.MASTODON)
+
+
+def _self_consistency_pick(project: Project, platform: Platform, *,
+                              mode: GenerationMode, attempt: int,
+                              subreddit: Optional[str], reflexion_hint: str,
+                              project_name: str, min_score: float,
+                              n: int = 3) -> tuple[Post, CritiqueResult]:
+    """Generate `n` drafts at varied temperatures, return the highest-scoring.
+
+    Falls back to a single draft if any sample fails. Used for short-form
+    platforms (X / Bluesky / Mastodon) where a single output must carry.
+    """
+    candidates: list[tuple[Post, CritiqueResult]] = []
+    for i in range(n):
+        try:
+            p = _draft_attempt(project, platform, attempt=attempt + i, mode=mode,
+                                  subreddit=subreddit, reflexion_hint=reflexion_hint)
+            c = critique(p, project_name=project_name,
+                            min_score=min_score, use_llm=False)
+            candidates.append((p, c))
+        except Exception as e:
+            log.debug("self-consistency sample %d failed: %s", i, e)
+    if not candidates:
+        # Should never happen since template fallback always returns something
+        p = _draft_attempt(project, platform, attempt=attempt, mode=mode,
+                              subreddit=subreddit, reflexion_hint=reflexion_hint)
+        c = critique(p, project_name=project_name,
+                        min_score=min_score, use_llm=False)
+        return p, c
+    # Pick the one with the highest critic score
+    return max(candidates, key=lambda pc: pc[1].score)
+
+
 def supervise(project: Project, platform: Platform, *,
                 mode: GenerationMode = GenerationMode.HYBRID,
                 max_iterations: int = 3,
@@ -208,7 +245,8 @@ def supervise(project: Project, platform: Platform, *,
                 subreddit: Optional[str] = None,
                 use_llm_critic: bool = True,
                 use_reflexion: bool = True,
-                use_agent_sdk: bool = True) -> SupervisorResult:
+                use_agent_sdk: bool = True,
+                use_self_consistency: bool = False) -> SupervisorResult:
     """Drafter → Critic → Rewriter loop. Returns best-scoring post.
 
     Stops early as soon as a draft scores >= min_score. Otherwise runs
@@ -217,6 +255,11 @@ def supervise(project: Project, platform: Platform, *,
     use_reflexion: when True (default), prepend recent low-score patterns
     from this (project, platform) channel to the LLM prompt as a
     "things-to-avoid" hint, AND append every critique to reflexion memory.
+
+    use_self_consistency: when True for short-form platforms (X / Bluesky /
+    Mastodon), each iteration samples 3 drafts and picks the highest-scoring.
+    Per Q1 2026 LLM research, captures ~80% of Tree-of-Thoughts lift at 25%
+    the cost on short-form content. Off by default (3x LLM cost).
     """
     history: list[tuple[Post, CritiqueResult]] = []
     best_idx = 0
@@ -240,10 +283,22 @@ def supervise(project: Project, platform: Platform, *,
                               body_preview=sdk_result.post.body[:200])
             return sdk_result
 
+    short_form_self_consistency = (
+        use_self_consistency and platform in _SHORT_FORM
+    )
     for attempt in range(max_iterations):
-        post = _draft_attempt(project, platform, attempt=attempt, mode=mode,
-                                subreddit=subreddit, last_critique=last_crit,
-                                reflexion_hint=hint)
+        if short_form_self_consistency:
+            post, _initial_crit = _self_consistency_pick(
+                project, platform, mode=mode, attempt=attempt,
+                subreddit=subreddit, reflexion_hint=hint,
+                project_name=project.name, min_score=min_score, n=3,
+            )
+        else:
+            post = _draft_attempt(
+                project, platform, attempt=attempt, mode=mode,
+                subreddit=subreddit, last_critique=last_crit,
+                reflexion_hint=hint,
+            )
         crit = critique(post, project_name=project.name,
                           min_score=min_score, use_llm=use_llm_critic)
         log.info("supervisor attempt %d: score=%.2f reasons=%s",

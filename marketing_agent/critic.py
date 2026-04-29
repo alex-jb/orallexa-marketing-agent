@@ -179,23 +179,51 @@ def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]
 
 def critique(post: Post, *, project_name: str = "",
               min_score: float = DEFAULT_MIN_SCORE,
-              use_llm: bool = True) -> CritiqueResult:
-    """Combined critic: heuristic always, LLM blends in when available.
+              use_llm: bool = True,
+              use_ensemble: bool = True) -> CritiqueResult:
+    """Combined critic: heuristic + LLM (single or ensemble) blended.
 
-    Combination rule: take min of the two scores (the harsher critic wins).
-    If LLM is unavailable, fall back to heuristic alone.
+    Tier ladder (highest→lowest):
+      1. Ensemble (Claude + GPT-5 + Gemini) when use_ensemble + ≥2 keys + litellm
+      2. Single Claude critic when ANTHROPIC_API_KEY set (or single key in ensemble)
+      3. Heuristic only — always available, no key needed
+
+    Combination rule: take min of all available scores (harshest wins).
+    auto_reject: heuristic always counts; ensemble votes by majority,
+    single LLM by its own threshold.
     """
     h = heuristic_score(post)
     if not use_llm:
         h.auto_reject = h.score < min_score
         return h
+
+    # Try ensemble first if requested and ≥2 providers configured
+    if use_ensemble:
+        try:
+            from marketing_agent.ensemble_critic import (
+                _configured_providers, ensemble_score,
+            )
+            if len(_configured_providers()) >= 2:
+                ens = ensemble_score(post, project_name=project_name,
+                                          min_score=min_score)
+                if ens is not None:
+                    combined = CritiqueResult(
+                        score=round(min(h.score, ens.score), 2),
+                        reasons=h.reasons + ens.reasons,
+                        auto_reject=(min(h.score, ens.score) < min_score
+                                       or ens.auto_reject),
+                    )
+                    return combined
+        except Exception:
+            pass
+
+    # Fall back to single Claude critic (v0.10 behavior)
     llm = llm_score(post, project_name=project_name)
     if llm is None:
         h.auto_reject = h.score < min_score
         return h
-    combined = CritiqueResult(
+    return CritiqueResult(
         score=round(min(h.score, llm.score), 2),
         reasons=h.reasons + llm.reasons,
         auto_reject=min(h.score, llm.score) < min_score,
     )
-    return combined

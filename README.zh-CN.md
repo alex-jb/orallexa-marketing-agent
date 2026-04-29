@@ -2,9 +2,9 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-198%20passing-brightgreen.svg)](#)
-[![Coverage](https://img.shields.io/badge/coverage-76%25-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.11.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-228%20passing-brightgreen.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-75%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -99,7 +99,8 @@ Roadmap：
 - [x] **v0.8** — Phoenix / OTel 可观测性（opt-in `[observability]` extras）· DSPy signatures 框架（4 个 typed Signature，compile 钩子已就位）· PyPI 构建产物 + `publish-pypi.yml` workflow · `py.typed` 标记
 - [x] **v0.9** — 加固 sprint：reply_suggester 覆盖率 0% → 81% · X/Bluesky/Mastodon 配图上传 mock 测试 · MCP 工具集成测试 · BM25 单 doc 边界修复 · critic min-score 单点常量化 · CHANGELOG.md · CI floor 60% → 70%
 - [x] **v0.10** — Streamlit queue UI（`marketing-agent ui`，浏览器/手机都能用）· 定时发布（`scheduled_for` frontmatter + 每小时 cron + `marketing-agent schedule --best-time`）· CLI smoke tests（cli.py 0% → 已覆盖）· 198 tests, 76% coverage
-- [ ] **v0.11** — DSPy 用 engagement 历史编译 · Imagen 4 / Nano Banana 2 付费层 · PyPI tag-触发自动发布 · X engagement webhook 接收器
+- [x] **v0.11** — **ICPL**（in-context 偏好学习，编辑信号当 few-shot，免训练）· **多 LLM ensemble critic**（LiteLLM 把 Claude + GPT-5 + Gemini 串起来 majority vote）· **self-consistency-3** 短文案 supervisor 加固 · **Bluesky firehose 监听**（免费实时 engagement，对比 X Enterprise $42k/yr 才有 webhook）· 228 tests, 75% coverage
+- [ ] **v0.12** — DSPy 用 engagement 历史编译 · Computer Use 知乎/小红书 发帖 · Voyager-风格 auto-skill 自动晋升 · Edge inference fallback（Cloudflare Workers AI）· PyPI tag-触发自动发布
 - [ ] **v1.0** — 开源公开 launch · YC 申请
 
 ---

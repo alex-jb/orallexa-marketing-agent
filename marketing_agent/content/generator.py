@@ -80,10 +80,22 @@ def _generate_with_llm(
     system_prompt = _system_for(platform)
     user_prompt = _user_prompt_for(project, platform, subreddit=subreddit)
 
+    # ICPL: inject up to 5 recent (original → edited) pairs from this
+    # (project, platform) channel as few-shot exemplars. Free preference
+    # signal — over time the agent learns to write in the human reviewer's
+    # voice without any fine-tuning. No-op when no edits logged yet.
+    try:
+        from marketing_agent.preference import PreferenceStore
+        block = PreferenceStore().few_shot_block(
+            project_name=project.name, platform=platform, limit=5)
+        if block:
+            user_prompt = block + "\n\n" + user_prompt
+    except Exception:
+        pass
+
     # Prompt caching: the system prompt (~200-400 tokens of style guide)
     # is stable across all daily-cron calls. Marking it cache_control
     # ephemeral with 1h TTL cuts input cost ~80% on repeated runs.
-    # No-op when no key is set (we never enter this function in that case).
     resp = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=600,

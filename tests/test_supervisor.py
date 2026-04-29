@@ -90,3 +90,33 @@ def test_supervise_falls_back_to_template_without_llm(monkeypatch):
     # Just confirm it doesn't crash and returns a valid post
     assert result.post.platform == Platform.X
     assert len(result.post.body) > 0
+
+
+def test_self_consistency_returns_valid_post_for_short_form(monkeypatch):
+    """use_self_consistency=True on X should still return a valid post —
+    the template-mode samples vary but the picker logic must not crash."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    result = supervise(_project(), Platform.X,
+                          mode=GenerationMode.TEMPLATE,
+                          max_iterations=1, min_score=0.0,
+                          use_llm_critic=False,
+                          use_self_consistency=True)
+    assert result.post.platform == Platform.X
+    assert len(result.post.body) > 0
+    # variant_key should be one of the X variants
+    assert result.post.variant_key in (
+        "x:emoji-led", "x:question-led", "x:stat-led",
+    )
+
+
+def test_self_consistency_off_for_long_form_platforms(monkeypatch):
+    """Reddit / LinkedIn / Dev.to don't trigger self-consistency even when
+    the flag is on (template mode has no variants for them)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    result = supervise(_project(), Platform.LINKEDIN,
+                          mode=GenerationMode.TEMPLATE,
+                          max_iterations=1, min_score=0.0,
+                          use_llm_critic=False,
+                          use_self_consistency=True)
+    assert result.post.platform == Platform.LINKEDIN
+    assert len(result.post.body) > 0
