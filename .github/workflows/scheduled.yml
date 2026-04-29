@@ -1,0 +1,67 @@
+name: Scheduled publisher (hourly)
+
+# Hourly cron that publishes any queue/approved/ items whose
+# `scheduled_for` frontmatter has passed. Items without `scheduled_for`
+# are also published (preserves v0.9 immediate-publish behavior — that
+# path is also covered by publish.yml on push).
+#
+# Why a separate workflow from publish.yml? publish.yml is push-triggered
+# (when you `git mv pending → approved`). For scheduled items, you commit
+# the file early and let this hourly cron pick it up at the right time.
+
+on:
+  schedule:
+    - cron: "5 * * * *"  # 5 minutes past every hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-due:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Publish due items
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          MASTODON_INSTANCE: ${{ secrets.MASTODON_INSTANCE }}
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          MARKETING_AGENT_QUEUE: ${{ github.workspace }}/queue
+        run: |
+          PYTHONPATH=. python3 -m marketing_agent post
+
+      - name: Commit queue state changes (approved → posted)
+        run: |
+          git config user.name  "marketing-agent-bot"
+          git config user.email "marketing-agent-bot@users.noreply.github.com"
+          git add queue/
+          if git diff --cached --quiet; then
+            echo "No queue state changes."
+            exit 0
+          fi
+          git commit -m "chore(queue): scheduled publish ($(date -u +%Y-%m-%dT%H:%MZ))"
+          git push

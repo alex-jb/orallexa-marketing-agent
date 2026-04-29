@@ -59,17 +59,29 @@ def cmd_generate(args) -> int:
 
 
 def cmd_post(args) -> int:
-    """Publish all files in the approved/ queue."""
+    """Publish approved/ items whose scheduled_for is due (or unset)."""
+    from marketing_agent.schedule import filter_due, get_scheduled_for
     q = ApprovalQueue()
     mem = PostMemory()
     cost = CostTracker()
-    approved = q.list_approved()
-    if not approved:
+    all_approved = q.list_approved()
+    if not all_approved:
         print("(no items in approved/ — nothing to post)")
         return 0
+
+    due = filter_due(all_approved)
+    waiting = [p for p in all_approved if p not in due]
+    if waiting:
+        print(f"⏰ {len(waiting)} item(s) waiting on schedule:")
+        for p in waiting:
+            sf = get_scheduled_for(p)
+            print(f"   {p.name} @ {sf.isoformat() if sf else '(unscheduled)'}")
+    if not due:
+        return 0
+
     orch = Orchestrator()
     failed = 0
-    for path in approved:
+    for path in due:
         post, meta = q.load(path)
         project_name = meta.get("project", "unknown")
         if mem.has_posted(post):
@@ -140,6 +152,39 @@ def cmd_plan(args) -> int:
                        use_llm=use_llm, out_dir=args.out_dir)
     print(f"📋 Plan written: {path}")
     return 0
+
+
+def cmd_schedule(args) -> int:
+    """Set scheduled_for on a queue file. Either explicit --at or --best-time."""
+    from pathlib import Path
+    from marketing_agent.schedule import (
+        parse_iso, schedule_via_best_time, set_scheduled_for,
+    )
+    path = Path(args.file)
+    if not path.exists():
+        print(f"❌ not found: {path}")
+        return 1
+    if args.best_time:
+        plat = Platform(args.platform) if args.platform else None
+        if plat is None:
+            print("❌ --best-time requires --platform")
+            return 1
+        when = schedule_via_best_time(path, plat, project_name=args.project)
+        print(f"⏰ scheduled {path.name} for {when.isoformat()} (best-time CDF)")
+        return 0
+    if args.at:
+        when = parse_iso(args.at)
+        set_scheduled_for(path, when)
+        print(f"⏰ scheduled {path.name} for {when.isoformat()}")
+        return 0
+    print("❌ provide either --at <iso> or --best-time --platform <p>")
+    return 1
+
+
+def cmd_ui(args) -> int:
+    """Launch the Streamlit queue UI in the default browser."""
+    from marketing_agent.web_ui import run_app
+    return run_app(port=args.port)
 
 
 def cmd_image(args) -> int:
@@ -295,6 +340,25 @@ def main(argv: Optional[list[str]] = None) -> int:
     pl.add_argument("--mode", choices=["template", "llm"], default="template")
     pl.add_argument("--out-dir", default="docs")
     pl.set_defaults(func=cmd_plan)
+
+    sc = sub.add_parser("schedule", help="Schedule a queue file for a specific time")
+    sc.add_argument("--file", required=True,
+                     help="Path to a queue/*.md file")
+    sc.add_argument("--at", default=None,
+                     help="ISO datetime, e.g. 2026-05-04T13:00:00Z")
+    sc.add_argument("--best-time", action="store_true",
+                     help="Auto-pick the next occurrence of the best hour for "
+                          "this platform from the engagement DB CDF")
+    sc.add_argument("--platform", default=None,
+                     choices=[p.value for p in Platform],
+                     help="Required when --best-time is used")
+    sc.add_argument("--project", default=None,
+                     help="Optional: filter best-time CDF by project_name")
+    sc.set_defaults(func=cmd_schedule)
+
+    u = sub.add_parser("ui", help="Open the Streamlit queue UI in a browser")
+    u.add_argument("--port", type=int, default=8501)
+    u.set_defaults(func=cmd_ui)
 
     img = sub.add_parser("image", help="Generate a cover image for a post")
     img.add_argument("--name", required=True)

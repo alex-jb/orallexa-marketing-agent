@@ -2,6 +2,23 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0] — 2026-04-30
+
+**UX + scheduling — make the queue phone-friendly and time-aware.**
+
+### Added
+- `marketing_agent.web_ui` — Streamlit queue UI. Browse pending/approved/posted/rejected, edit body inline, click approve/reject. Image preview when `attach_image_url` or `image_url` is set in frontmatter. Run via `marketing-agent ui` (port 8501) or `marketing-agent-ui` script. Optional dep `[ui] = streamlit>=1.40`.
+- `marketing_agent.schedule` — `scheduled_for` ISO datetime in queue file frontmatter. `is_due()` / `filter_due()` partition approved items. `marketing_agent post` now skips items whose `scheduled_for` is still in the future, prints a "waiting" list. `next_occurrence_of_hour()` + `schedule_via_best_time()` auto-pick the next instance of the optimal hour-of-week from the engagement CDF.
+- New CLI subcommands: `ui` (open browser), `schedule` (set `scheduled_for` either via `--at <iso>` or `--best-time --platform x`).
+- `.github/workflows/scheduled.yml` — hourly cron that publishes any approved items past their `scheduled_for`. Runs at HH:05 UTC.
+- New extras: `[ui]`. New script entry point: `marketing-agent-ui`.
+
+### Tests + coverage
+- `tests/test_web_ui.py` — 5 smoke tests (module imports, env override, graceful no-streamlit exit).
+- `tests/test_schedule.py` — 16 tests: ISO parsing (Z-suffix / offset / naive), set/get/replace `scheduled_for`, `is_due`/`filter_due`, `next_occurrence_of_hour`, `schedule_via_best_time` fallback to industry default.
+- `tests/test_cli.py` — 17 CLI smoke tests covering generate/queue/plan/best-time/bandit/image/schedule/ui paths. `cli.py` coverage 0% → covered.
+- **Total: 198 tests passing (was 160). Coverage 70% → 76%.**
+
 ## [0.9.0] — 2026-04-30
 
 **Hardening sprint — no new features, all reviews + tests + cleanups.**
@@ -102,6 +119,7 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.10.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.10.0
 [0.9.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.9.0
 [0.8.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.8.0
 [0.7.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.7.0
