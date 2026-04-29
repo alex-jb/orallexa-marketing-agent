@@ -138,12 +138,17 @@ def heuristic_score(post: Post) -> CritiqueResult:
 
 
 def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]:
-    """LLM-based critic. Returns None if no key set or any failure."""
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return None
+    """LLM-based critic. Routes through solo_founder_os.AnthropicClient so
+    token usage flows into the cross-agent cost-audit report. Returns None
+    if no key set or any failure."""
     try:
-        from anthropic import Anthropic
-        client = Anthropic()
+        from solo_founder_os.anthropic_client import (
+            AnthropicClient, DEFAULT_HAIKU_MODEL,
+        )
+        from marketing_agent.cost import USAGE_LOG_PATH
+        client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+        if not client.configured:
+            return None
         prompt = (
             f"You are a brutal social-media editor. A solo OSS founder is "
             f"about to post the following on {post.platform.value}. Project "
@@ -156,11 +161,14 @@ def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]
             f"Penalize: hype words, generic platitudes, no concrete detail, "
             f"forced humor, hashtag spam, length issues."
         )
-        resp = client.messages.create(
-            model="claude-haiku-4-5", max_tokens=120,
+        resp, err = client.messages_create(
+            model=DEFAULT_HAIKU_MODEL, max_tokens=120,
             messages=[{"role": "user", "content": prompt}],
         )
-        text = "".join(b.text for b in resp.content if b.type == "text")
+        if err is not None or resp is None:
+            log.debug("llm_score messages_create returned error: %s", err)
+            return None
+        text = AnthropicClient.extract_text(resp)
         m_score = re.search(r"SCORE:\s*(\d+(?:\.\d+)?)", text)
         m_reason = re.search(r"REASON:\s*(.+)", text)
         if not m_score:

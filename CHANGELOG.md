@@ -2,6 +2,30 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] — 2026-04-30
+
+**Joining the Solo Founder OS shared base.**
+
+### Added
+- Hard dependency on `solo-founder-os>=0.1.0` — the shared agent stack base, same package now used by `build-quality-agent` v0.4 and `customer-discovery-agent` v0.2.
+- `marketing_agent.cost.USAGE_LOG_PATH` — every Anthropic call writes token usage to `~/.marketing-agent/usage.jsonl`. `cost-audit-agent` reads from there for the cross-agent monthly cost report.
+- Honest 知乎 / 小红书 content-prep adapters (locked in v0.12.1 commit, formalized here): `dry_run_preview` outputs include AI-disclosure reminders, hook templates, length classifiers, and platform-rule checklists per Q2 2026 anti-bot research.
+
+### Changed
+- **All 6 LLM call sites migrated** from `from anthropic import Anthropic` to `from solo_founder_os.anthropic_client import AnthropicClient`:
+  - `content/generator.py` (Tier-2 Claude Sonnet draft path)
+  - `content/images.py` (Midjourney/DALL-E prompt suggester via Haiku)
+  - `critic.py` (LLM critic via Haiku)
+  - `strategy.py` (LaunchPlan generator via Haiku)
+  - `reply_suggester.py` (reply drafter via Sonnet)
+  - `supervisor.py` (Drafter loop LLM mode via Sonnet)
+- All migrated calls return `(resp, err)` tuples; graceful template/heuristic fallback on `err is not None` or `client.configured == False`.
+- Hardcoded model strings replaced with `DEFAULT_HAIKU_MODEL` / `DEFAULT_SONNET_MODEL` constants.
+
+### Tests
+- Updated `tests/test_reply_suggester.py::test_llm_reply_calls_anthropic_when_keyed` to mock `solo_founder_os.anthropic_client.AnthropicClient` instead of `anthropic.Anthropic`.
+- All **274 tests pass**.
+
 ## [0.12.0] — 2026-04-30
 
 **Cost lever + analytics surface + agent-self-improvement.**
@@ -151,6 +175,7 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.13.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.13.0
 [0.12.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.12.0
 [0.11.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.11.0
 [0.10.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.10.0

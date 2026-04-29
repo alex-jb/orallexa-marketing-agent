@@ -31,15 +31,21 @@ log = get_logger(__name__)
 def suggest_image_prompt(project: Project, *,
                           platform: Platform = Platform.X,
                           style: str = "minimalist") -> str:
-    """Return a single Midjourney/DALL-E-ready prompt string."""
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return _template_image_prompt(project, platform, style)
+    """Return a single Midjourney/DALL-E-ready prompt string.
 
+    Routes through solo_founder_os.AnthropicClient → token usage flows into
+    cross-agent cost-audit report. Falls back to template on any failure.
+    """
     try:
-        from anthropic import Anthropic
-        client = Anthropic()
-        resp = client.messages.create(
-            model="claude-haiku-4-5",
+        from solo_founder_os.anthropic_client import (
+            AnthropicClient, DEFAULT_HAIKU_MODEL,
+        )
+        from marketing_agent.cost import USAGE_LOG_PATH
+        client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+        if not client.configured:
+            return _template_image_prompt(project, platform, style)
+        resp, err = client.messages_create(
+            model=DEFAULT_HAIKU_MODEL,
             max_tokens=200,
             messages=[{
                 "role": "user",
@@ -53,7 +59,9 @@ def suggest_image_prompt(project: Project, *,
                 ),
             }],
         )
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        if err is not None or resp is None:
+            return _template_image_prompt(project, platform, style)
+        text = AnthropicClient.extract_text(resp).strip()
         return text.strip('"').strip("'")
     except Exception:
         return _template_image_prompt(project, platform, style)

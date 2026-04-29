@@ -8,6 +8,10 @@ Per-call costs (April 2026):
 
 Tracked in the same SQLite as post history. Useful for: 'is this auto-
 posting actually paying for itself?' and 'is the LLM bill creeping up?'.
+
+v0.13: AnthropicClient calls flow through solo-founder-os' shared
+AnthropicClient → ~/.marketing-agent/usage.jsonl. cost-audit-agent picks
+this path up in the cross-agent monthly report.
 """
 from __future__ import annotations
 import os
@@ -17,6 +21,10 @@ from pathlib import Path
 from typing import Optional
 
 from marketing_agent.memory import _default_db_path
+
+# Shared usage log path — every solo-founder-os AnthropicClient instance
+# writes here. cost-audit-agent reads it for the cross-agent cost report.
+USAGE_LOG_PATH = Path.home() / ".marketing-agent" / "usage.jsonl"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cost_log (

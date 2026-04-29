@@ -114,18 +114,25 @@ def template_reply(tweet: Tweet) -> str:
 
 
 def llm_reply(tweet: Tweet, *, your_voice: str = "") -> str:
-    """Use Claude to draft a reply. Requires ANTHROPIC_API_KEY."""
-    from anthropic import Anthropic
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return template_reply(tweet)
+    """Use Claude to draft a reply via solo_founder_os.AnthropicClient (so
+    token usage flows into the cross-agent cost-audit report). Falls back
+    to template_reply on missing key or any failure."""
+    try:
+        from solo_founder_os.anthropic_client import (
+            AnthropicClient, DEFAULT_SONNET_MODEL,
+        )
+        from marketing_agent.cost import USAGE_LOG_PATH
+        client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+        if not client.configured:
+            return template_reply(tweet)
 
-    voice = your_voice or (
-        "I'm Alex Ji — Navy veteran, MS CS at Yeshiva, building Orallexa "
-        "(multi-agent AI trading system) and Orallexa Marketing Agent "
-        "(this tool that's drafting this reply). Voice: technical, honest, "
-        "no hype. I disagree when I disagree."
-    )
-    prompt = f"""You are drafting a reply to a tweet on behalf of:
+        voice = your_voice or (
+            "I'm Alex Ji — Navy veteran, MS CS at Yeshiva, building Orallexa "
+            "(multi-agent AI trading system) and Orallexa Marketing Agent "
+            "(this tool that's drafting this reply). Voice: technical, honest, "
+            "no hype. I disagree when I disagree."
+        )
+        prompt = f"""You are drafting a reply to a tweet on behalf of:
 
 {voice}
 
@@ -142,14 +149,17 @@ Write a single-tweet reply (≤270 chars). Rules:
 - The HUMAN will review and edit before posting — keep it as a draft, not final
 
 Output ONLY the reply text, no preamble, no quotes."""
-    client = Anthropic()
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = "".join(b.text for b in resp.content if b.type == "text").strip()
-    return text.strip('"').strip("'").strip()
+        resp, err = client.messages_create(
+            model=DEFAULT_SONNET_MODEL,
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if err is not None or resp is None:
+            return template_reply(tweet)
+        text = AnthropicClient.extract_text(resp).strip()
+        return text.strip('"').strip("'").strip()
+    except Exception:
+        return template_reply(tweet)
 
 
 def suggest_replies_to_queue(handles: list[str], *,

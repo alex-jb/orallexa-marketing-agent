@@ -117,15 +117,22 @@ def _generate_with_llm(
     except Exception:
         pass
 
-    # Tier 2: Anthropic Claude (default path)
-    from anthropic import Anthropic
-    client = Anthropic()
+    # Tier 2: Anthropic Claude via solo_founder_os.AnthropicClient
+    # (token usage flows into the cross-agent cost-audit report).
+    from solo_founder_os.anthropic_client import (
+        AnthropicClient, DEFAULT_SONNET_MODEL,
+    )
+    from marketing_agent.cost import USAGE_LOG_PATH
+    client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+    if not client.configured:
+        # No key — caller (generate_posts) will fall through to template
+        raise RuntimeError("ANTHROPIC_API_KEY not set; LLM mode unavailable")
 
     # Prompt caching: the system prompt (~200-400 tokens of style guide)
     # is stable across all daily-cron calls. Marking it cache_control
     # ephemeral with 1h TTL cuts input cost ~80% on repeated runs.
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
+    resp, err = client.messages_create(
+        model=DEFAULT_SONNET_MODEL,
         max_tokens=600,
         system=[{
             "type": "text", "text": system_prompt,
@@ -133,7 +140,9 @@ def _generate_with_llm(
         }],
         messages=[{"role": "user", "content": user_prompt}],
     )
-    text = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if err is not None or resp is None:
+        raise RuntimeError(f"LLM call failed: {err}")
+    text = AnthropicClient.extract_text(resp).strip()
     text = text.strip('"').strip("'").strip()
 
     return _post_for(platform, text, project, subreddit=subreddit).with_count()

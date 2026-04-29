@@ -101,23 +101,24 @@ def test_llm_reply_falls_back_to_template_without_key(monkeypatch):
 
 
 def test_llm_reply_calls_anthropic_when_keyed(monkeypatch):
-    """With key set + Anthropic mocked, llm_reply returns the mocked text."""
+    """With key set + AnthropicClient mocked, llm_reply returns the mocked text."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    fake_resp = MagicMock()
-    fake_block = MagicMock()
-    fake_block.type = "text"
-    fake_block.text = "Sharp point. The bottleneck I keep hitting is X."
-    fake_resp.content = [fake_block]
+    fake_resp = MagicMock()  # opaque blob — extract_text reads it
     fake_client = MagicMock()
-    fake_client.messages.create.return_value = fake_resp
+    fake_client.configured = True
+    fake_client.messages_create.return_value = (fake_resp, None)
+
+    import solo_founder_os.anthropic_client as sfo_anthropic
+    monkeypatch.setattr(sfo_anthropic, "AnthropicClient",
+                          MagicMock(return_value=fake_client))
+    monkeypatch.setattr(sfo_anthropic.AnthropicClient, "extract_text",
+                          MagicMock(return_value="Sharp point. The bottleneck I keep hitting is X."))
 
     import marketing_agent.reply_suggester as rs
-    monkeypatch.setattr("anthropic.Anthropic", lambda: fake_client)
-
     t = _tweet("Agents are eating the world")
     r = rs.llm_reply(t)
     assert "Sharp point" in r
-    assert fake_client.messages.create.called
+    assert fake_client.messages_create.called
 
 
 # ───────────────── fetch_recent_tweets_from_handles ─────────────────

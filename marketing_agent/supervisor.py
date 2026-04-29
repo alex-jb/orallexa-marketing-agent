@@ -65,13 +65,20 @@ def _draft_attempt(project: Project, platform: Platform, *,
             return templates.render_x(project, variant=chosen)
         return templates.render(platform, project, subreddit=subreddit)
 
-    # LLM mode: import locally so test runs without anthropic still work
+    # LLM mode via solo_founder_os.AnthropicClient (token usage flows into
+    # the cross-agent cost-audit report). Imported locally so test runs
+    # without solo-founder-os still work via fallback.
     try:
-        from anthropic import Anthropic
+        from solo_founder_os.anthropic_client import (
+            AnthropicClient, DEFAULT_SONNET_MODEL,
+        )
         from marketing_agent.content.generator import (
             _system_for, _user_prompt_for, _post_for,
         )
-        client = Anthropic()
+        from marketing_agent.cost import USAGE_LOG_PATH
+        client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+        if not client.configured:
+            return templates.render(platform, project, subreddit=subreddit)
         system = _system_for(platform)
         user = _user_prompt_for(project, platform, subreddit=subreddit)
         # Reflexion: cross-session memory of past failures on this channel
@@ -85,11 +92,13 @@ def _draft_attempt(project: Project, platform: Platform, *,
                 + "\nProduce a fundamentally different draft that addresses these."
             )
             user += steer
-        resp = client.messages.create(
-            model="claude-sonnet-4-6", max_tokens=600,
+        resp, err = client.messages_create(
+            model=DEFAULT_SONNET_MODEL, max_tokens=600,
             system=system, messages=[{"role": "user", "content": user}],
         )
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        if err is not None or resp is None:
+            return templates.render(platform, project, subreddit=subreddit)
+        text = AnthropicClient.extract_text(resp).strip()
         text = text.strip('"').strip("'").strip()
         return _post_for(platform, text, project, subreddit=subreddit).with_count()
     except Exception as e:

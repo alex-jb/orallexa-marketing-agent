@@ -167,11 +167,14 @@ def llm_plan(project: Project, *, days: int = 30,
     Uses claude-haiku-4-5 — generating 8-15 short JSON actions doesn't need
     Sonnet's reasoning; Haiku is ~4x cheaper and 2x faster.
     """
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        return default_plan(project, days=days, ph_launch_day=ph_launch_day)
-
     try:
-        from anthropic import Anthropic
+        from solo_founder_os.anthropic_client import (
+            AnthropicClient, DEFAULT_HAIKU_MODEL,
+        )
+        from marketing_agent.cost import USAGE_LOG_PATH
+        client = AnthropicClient(usage_log_path=USAGE_LOG_PATH)
+        if not client.configured:
+            return default_plan(project, days=days, ph_launch_day=ph_launch_day)
 
         ph = ph_launch_day
         n_actions = 8 + (days // 30) * 4  # 12 for 60-day, 16 for 90-day
@@ -215,12 +218,13 @@ Rules:
 
 Output ONLY the JSON, no preamble."""
 
-        client = Anthropic()
-        resp = client.messages.create(
-            model="claude-haiku-4-5", max_tokens=2500,
+        resp, err = client.messages_create(
+            model=DEFAULT_HAIKU_MODEL, max_tokens=2500,
             messages=[{"role": "user", "content": prompt}],
         )
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
+        if err is not None or resp is None:
+            return default_plan(project, days=days, ph_launch_day=ph_launch_day)
+        text = AnthropicClient.extract_text(resp).strip()
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```\s*$", "", text).strip()
         if not text.startswith("{"):
