@@ -73,6 +73,24 @@ def _ask_one(model: str, post: Post, project_name: str) -> Optional[CritiqueResu
             messages=[{"role": "user", "content": prompt}],
         )
         text = resp.choices[0].message.content or ""
+
+        # Best-effort usage log — picks up GPT-5 / Gemini / etc. spend
+        # alongside Anthropic + Cloudflare rows. cost-audit-agent reads this.
+        try:
+            from marketing_agent.cost import USAGE_LOG_PATH
+            from marketing_agent.llm.anthropic_compat import log_usage
+            usage = getattr(resp, "usage", None)
+            in_t = int(getattr(usage, "prompt_tokens", 0) or 0)
+            out_t = int(getattr(usage, "completion_tokens", 0) or 0)
+            log_usage(
+                log_path=USAGE_LOG_PATH,
+                model=model,
+                input_tokens=in_t,
+                output_tokens=out_t,
+                extra={"provider": "litellm-ensemble"},
+            )
+        except Exception:
+            pass
         m_score = re.search(r"SCORE:\s*(\d+(?:\.\d+)?)", text)
         m_reason = re.search(r"REASON:\s*(.+)", text)
         if not m_score:

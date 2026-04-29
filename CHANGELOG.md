@@ -2,6 +2,23 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.14.0] — 2026-04-30
+
+**Cross-provider usage logging — cost-audit-agent now sees 100% of LLM spend.**
+
+### Added
+- `marketing_agent.llm.anthropic_compat.log_usage` — re-exports the real `solo_founder_os.anthropic_client.log_usage` when installed, otherwise provides a hand-rolled twin with the identical JSONL schema (`{ts, model, input_tokens, output_tokens, **extra}`).
+- **Cloudflare Workers AI calls now log** to `USAGE_LOG_PATH` with `provider=cloudflare-workers-ai` tag. Previously bypassed the audit.
+- **LiteLLM ensemble critic calls now log** with `provider=litellm-ensemble` tag — captures GPT-5 + Gemini spend alongside Anthropic.
+- 5 new tests verify the schema + per-provider tagging + that failures don't break callers.
+
+### Why this matters
+v0.13 brought Anthropic spend into the cross-agent audit pipeline. v0.14 closes the remaining holes: every paid LLM call from marketing-agent — Anthropic via solo-founder-os, Cloudflare via direct edge_provider, GPT-5/Gemini via LiteLLM — now lands in the same JSONL feed that `cost-audit-agent` reads for the monthly cross-agent cost report.
+
+### Tests
+- 282 → **287 tests** (+5)
+- Coverage steady at 76%
+
 ## [0.13.0] — 2026-04-30
 
 **Joining the Solo Founder OS shared base.**
@@ -175,6 +192,7 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.14.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.14.0
 [0.13.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.13.0
 [0.12.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.12.0
 [0.11.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.11.0

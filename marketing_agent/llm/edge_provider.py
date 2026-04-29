@@ -90,11 +90,29 @@ class EdgeLLM:
         result = data.get("result", {})
         text = result.get("response", "")
         usage = result.get("usage") or {}
+        in_tokens = int(usage.get("prompt_tokens", 0))
+        out_tokens = int(usage.get("completion_tokens", 0))
+
+        # Best-effort usage log — same JSONL format as solo_founder_os.
+        # cost-audit-agent picks it up alongside Anthropic + LiteLLM rows.
+        try:
+            from marketing_agent.cost import USAGE_LOG_PATH
+            from marketing_agent.llm.anthropic_compat import log_usage
+            log_usage(
+                log_path=USAGE_LOG_PATH,
+                model=self.model,
+                input_tokens=in_tokens,
+                output_tokens=out_tokens,
+                extra={"provider": "cloudflare-workers-ai"},
+            )
+        except Exception:
+            pass
+
         return EdgeLLMResponse(
             text=text.strip(),
             model=self.model,
-            usage_in_tokens=int(usage.get("prompt_tokens", 0)),
-            usage_out_tokens=int(usage.get("completion_tokens", 0)),
+            usage_in_tokens=in_tokens,
+            usage_out_tokens=out_tokens,
         )
 
 

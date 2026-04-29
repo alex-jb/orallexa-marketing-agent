@@ -34,6 +34,7 @@ try:
         AnthropicClient,
         DEFAULT_HAIKU_MODEL,
         DEFAULT_SONNET_MODEL,
+        log_usage,
     )
     _USING_SHARED_BASE = True
 except ImportError:
@@ -41,6 +42,38 @@ except ImportError:
 
     DEFAULT_HAIKU_MODEL = "claude-haiku-4-5"
     DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
+
+    # Hand-rolled twin of solo_founder_os.anthropic_client.log_usage so
+    # downstream callers (edge_provider, ensemble_critic) can write to the
+    # same JSONL format whether or not solo-founder-os is installed.
+    import json as _json
+    from datetime import datetime as _datetime, timezone as _timezone
+    from pathlib import Path as _Path
+
+    def log_usage(*, log_path: "_Path", model: str,
+                    input_tokens: int, output_tokens: int,
+                    extra: "dict | None" = None,
+                    now: "_datetime | None" = None) -> None:
+        """Append one usage row to log_path. Best-effort — never raises.
+
+        Schema matches solo_founder_os.anthropic_client.log_usage:
+            {ts, model, input_tokens, output_tokens, **extra}
+        """
+        now = now or _datetime.now(_timezone.utc)
+        row = {
+            "ts": now.isoformat(),
+            "model": model,
+            "input_tokens": int(input_tokens),
+            "output_tokens": int(output_tokens),
+        }
+        if extra:
+            row.update(extra)
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a") as f:
+                f.write(_json.dumps(row) + "\n")
+        except Exception:
+            pass
 
     class AnthropicClient:  # type: ignore[no-redef]
         """Fallback: thin wrapper around anthropic.Anthropic with the same
