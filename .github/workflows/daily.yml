@@ -12,16 +12,20 @@ on:
     - cron: "0 14 * * *"  # 14:00 UTC = 10:00 EDT — morning engagement window
   workflow_dispatch:
     inputs:
-      repo:
-        description: "Target repo (owner/name)"
-        required: true
-        default: "alex-jb/orallexa-ai-trading-agent"
       mode:
         description: "Generation mode (template / llm / hybrid)"
         required: false
         default: "hybrid"
+      use_config:
+        description: "Use marketing-agent.yml (multi-project) instead of single repo?"
+        required: false
+        default: "true"
+      single_repo:
+        description: "Single repo to target (only used if use_config=false)"
+        required: false
+        default: "alex-jb/orallexa-ai-trading-agent"
       platforms:
-        description: "Space-separated platforms (x reddit linkedin dev_to bluesky mastodon)"
+        description: "Override platforms (only used in single-repo mode)"
         required: false
         default: "x"
 
@@ -53,12 +57,21 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MARKETING_AGENT_QUEUE: ${{ github.workspace }}/queue
+          MARKETING_AGENT_DB_PATH: ${{ github.workspace }}/.marketing_agent.db
         run: |
-          REPO="${{ github.event.inputs.repo || 'alex-jb/orallexa-ai-trading-agent' }}"
           MODE="${{ github.event.inputs.mode || 'hybrid' }}"
-          PLATFORMS="${{ github.event.inputs.platforms || 'x' }}"
-          PYTHONPATH=. python3 scripts/daily_post.py \
-            --repo "$REPO" --mode "$MODE" --platforms $PLATFORMS --to-queue
+          USE_CONFIG="${{ github.event.inputs.use_config || 'true' }}"
+          if [ "$USE_CONFIG" = "true" ] && [ -f marketing-agent.yml ]; then
+            echo "🗂  Multi-project mode (reading marketing-agent.yml)"
+            PYTHONPATH=. python3 scripts/daily_post.py \
+              --config marketing-agent.yml --mode "$MODE" --to-queue
+          else
+            REPO="${{ github.event.inputs.single_repo || 'alex-jb/orallexa-ai-trading-agent' }}"
+            PLATFORMS="${{ github.event.inputs.platforms || 'x' }}"
+            echo "🗂  Single-repo mode: $REPO"
+            PYTHONPATH=. python3 scripts/daily_post.py \
+              --repo "$REPO" --mode "$MODE" --platforms $PLATFORMS --to-queue
+          fi
 
       - name: Commit drafts to queue/pending/
         if: steps.gen.outputs.queued_count != '' && steps.gen.outputs.queued_count != '0'

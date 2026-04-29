@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from marketing_agent import (
     ApprovalQueue, GenerationMode, Orchestrator, Platform, Project,
@@ -118,84 +119,56 @@ REPO_PRESETS: dict[str, dict] = {
 }
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", required=True,
-                    help="GitHub repo, e.g. alex-jb/orallexa-ai-trading-agent")
-    ap.add_argument("--hours", type=int, default=24)
-    ap.add_argument("--platforms", nargs="+",
-                    default=["x"],
-                    help="One or more of: x reddit linkedin dev_to")
-    ap.add_argument("--subreddit", default=None,
-                    help="Required when posting to reddit")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Generate and preview, don't actually post")
-    ap.add_argument("--to-queue", action="store_true",
-                    help="Submit drafts to ApprovalQueue (HITL) instead of posting directly")
-    ap.add_argument("--force", action="store_true",
-                    help="Post even when commits look skippable")
-    ap.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
-    args = ap.parse_args()
-
-    preset = REPO_PRESETS.get(args.repo)
-    if preset is None:
-        print(f"⚠️  No preset for {args.repo} — using minimal metadata", file=sys.stderr)
-        preset = {"name": args.repo.split("/")[-1], "tagline": "WIP",
-                  "description": None, "website": None, "tags": []}
-
-    print(f"🔍 Fetching commits from {args.repo} (last {args.hours}h)...")
-    commits = fetch_commits(args.repo, args.hours)
+def _run_for_project(*, repo: str, preset: dict, hours: int,
+                       platforms: list[str], subreddit: Optional[str],
+                       dry_run: bool, to_queue: bool, force: bool,
+                       mode_str: str) -> int:
+    """Run the daily flow for ONE (repo, preset) pair. Returns count queued
+    (when to_queue=True) or 0 on early-exit."""
+    print(f"\n━━━ {preset['name']}  ({repo}) ━━━")
+    print(f"🔍 Fetching commits from {repo} (last {hours}h)...")
+    commits = fetch_commits(repo, hours)
     print(f"   Found {len(commits)} commits")
 
     if not commits:
         print("ℹ️  No commits in window — nothing to post.")
         return 0
-
-    if is_all_skippable(commits) and not args.force:
+    if is_all_skippable(commits) and not force:
         print("ℹ️  All commits look like CI/docs/chores — skipping (use --force to override).")
         for c in commits:
             print(f"     {c['sha']} {c['msg'].splitlines()[0]}")
         return 0
 
-    project = build_project(args.repo, commits, **preset)
-
-    platforms = [Platform(p) for p in args.platforms]
+    project = build_project(repo, commits, **preset)
+    platforms_e = [Platform(p) for p in platforms]
     mode = {"template": GenerationMode.TEMPLATE,
             "llm": GenerationMode.LLM,
-            "hybrid": GenerationMode.HYBRID}[args.mode]
+            "hybrid": GenerationMode.HYBRID}[mode_str]
     orch = Orchestrator(mode=mode)
 
     print(f"🤖 Generating posts (mode={mode.value})...")
-    posts = orch.generate(project, platforms, subreddit=args.subreddit)
+    posts = orch.generate(project, platforms_e, subreddit=subreddit)
 
-    if args.to_queue:
+    if to_queue:
         q = ApprovalQueue()
-        paths: list[str] = []
+        queued = 0
         for post in posts:
             print(f"\n--- {post.platform.value.upper()} preview ---")
             print(orch.preview(post))
             p = q.submit(post, preset["name"], generated_by=mode.value)
-            paths.append(str(p))
-            print(f"📥 queued: {p}")
-        # GitHub Actions: surface the paths as a step output for the next job.
-        gh_out = os.getenv("GITHUB_OUTPUT")
-        if gh_out:
-            with open(gh_out, "a") as fh:
-                fh.write(f"queued_count={len(paths)}\n")
-        return 0
+            print(f"📥 {p.parent.name}: {p}")
+            if p.parent.name == "pending":
+                queued += 1
+        return queued
 
-    failed = 0
     for post in posts:
         print(f"\n--- {post.platform.value.upper()} preview ---")
         print(orch.preview(post))
-
-        if args.dry_run:
+        if dry_run:
             continue
-
         if not orch.is_ready(post.platform):
             print(f"⏭  Skipped (no credentials configured for {post.platform.value})")
             continue
-
         try:
             url = orch.post(post)
             print(f"✅ Posted: {url}")
@@ -203,9 +176,85 @@ def main() -> int:
             print(f"⏭  Skipped: {e}")
         except Exception as e:
             print(f"❌ {post.platform.value} post failed: {type(e).__name__}: {e}")
-            failed += 1
+    return 0
 
-    return 1 if failed else 0
+
+def _preset_from_config(cfg) -> dict:
+    """Convert a ProjectConfig → REPO_PRESETS-shaped dict."""
+    return {
+        "name": cfg.name, "tagline": cfg.tagline,
+        "description": cfg.description, "website": cfg.website,
+        "tags": cfg.tags,
+    }
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repo", default=None,
+                    help="GitHub repo, e.g. alex-jb/orallexa-ai-trading-agent. "
+                          "Mutually exclusive with --config.")
+    ap.add_argument("--config", default=None,
+                    help="Path to marketing-agent.yml; runs for every enabled "
+                          "project. Mutually exclusive with --repo.")
+    ap.add_argument("--hours", type=int, default=24)
+    ap.add_argument("--platforms", nargs="+", default=["x"],
+                    help="Override per-project platforms (config wins for "
+                          "--config mode unless this is set).")
+    ap.add_argument("--subreddit", default=None)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--to-queue", action="store_true")
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
+    args = ap.parse_args()
+
+    if not args.repo and not args.config:
+        ap.error("must provide --repo or --config")
+    if args.repo and args.config:
+        ap.error("--repo and --config are mutually exclusive")
+
+    total_queued = 0
+
+    if args.config:
+        from marketing_agent.multiproject import load_config
+        cfgs = load_config(args.config)
+        if not cfgs:
+            print(f"⚠️  No enabled projects found in {args.config}", file=sys.stderr)
+            return 0
+        print(f"📋 multi-project run · {len(cfgs)} enabled project(s)")
+        for cfg in cfgs:
+            preset = _preset_from_config(cfg)
+            # Per-project platform list from config; CLI --platforms only
+            # overrides if explicitly different from default.
+            plats = cfg.platforms if args.platforms == ["x"] else args.platforms
+            sub = args.subreddit or cfg.subreddit
+            queued = _run_for_project(
+                repo=cfg.repo, preset=preset, hours=args.hours,
+                platforms=plats, subreddit=sub,
+                dry_run=args.dry_run, to_queue=args.to_queue,
+                force=args.force, mode_str=args.mode,
+            )
+            total_queued += queued
+    else:
+        preset = REPO_PRESETS.get(args.repo)
+        if preset is None:
+            print(f"⚠️  No preset for {args.repo} — using minimal metadata",
+                   file=sys.stderr)
+            preset = {"name": args.repo.split("/")[-1], "tagline": "WIP",
+                       "description": None, "website": None, "tags": []}
+        total_queued = _run_for_project(
+            repo=args.repo, preset=preset, hours=args.hours,
+            platforms=args.platforms, subreddit=args.subreddit,
+            dry_run=args.dry_run, to_queue=args.to_queue,
+            force=args.force, mode_str=args.mode,
+        )
+
+    if args.to_queue:
+        gh_out = os.getenv("GITHUB_OUTPUT")
+        if gh_out:
+            with open(gh_out, "a") as fh:
+                fh.write(f"queued_count={total_queued}\n")
+        print(f"\n✅ Total queued: {total_queued}")
+    return 0
 
 
 if __name__ == "__main__":
