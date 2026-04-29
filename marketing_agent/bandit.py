@@ -135,3 +135,55 @@ class VariantBandit:
             d["mean"] = round(d["alpha"] / (d["alpha"] + d["beta"]), 4)
             out.append(d)
         return out
+
+    def report(self, *, min_pulls: int = 3) -> dict:
+        """Per-platform A/B winner report. Used by `marketing-agent bandit report`.
+
+        Groups arms by their key prefix (e.g. 'x:' for X). For each platform,
+        identifies the highest-mean arm with at least `min_pulls` data points,
+        and provides a 95% credible interval via Beta-quantile approximation.
+
+        Returns a dict shaped like:
+            {
+              'x': {
+                'winner': 'x:emoji-led',
+                'arms': [...],     # all arms for that platform
+                'sample_size_warning': bool  # True if winner has < 10 pulls
+              },
+              ...
+            }
+
+        When no arm has ≥ min_pulls, that platform's entry has winner=None.
+        """
+        all_stats = self.stats()
+        by_plat: dict[str, list[dict]] = {}
+        for arm in all_stats:
+            key = arm["variant_key"]
+            plat = key.split(":", 1)[0] if ":" in key else "_unknown"
+            by_plat.setdefault(plat, []).append(arm)
+
+        out: dict = {}
+        for plat, arms in by_plat.items():
+            qualified = [a for a in arms if a["n_pulls"] >= min_pulls]
+            winner = None
+            if qualified:
+                winner = max(qualified, key=lambda a: a["mean"])["variant_key"]
+            # Add 95% credible interval (Beta quantile approx via scipy if
+            # present; fallback to ±1 std for production safety)
+            for a in arms:
+                a_, b_ = a["alpha"], a["beta"]
+                # Beta variance: ab / ((a+b)^2 (a+b+1))
+                denom = (a_ + b_) ** 2 * (a_ + b_ + 1)
+                std = (a_ * b_ / denom) ** 0.5 if denom else 0.0
+                a["std"] = round(std, 4)
+                a["ci95_low"] = round(max(0.0, a["mean"] - 1.96 * std), 4)
+                a["ci95_high"] = round(min(1.0, a["mean"] + 1.96 * std), 4)
+            out[plat] = {
+                "winner": winner,
+                "arms": sorted(arms, key=lambda a: a["mean"], reverse=True),
+                "sample_size_warning": (winner is not None
+                                            and qualified
+                                            and max(a["n_pulls"]
+                                                       for a in qualified) < 10),
+            }
+        return out

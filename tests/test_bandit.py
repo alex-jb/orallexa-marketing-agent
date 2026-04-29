@@ -61,3 +61,52 @@ def test_update_from_engagement_returns_squashed(bandit):
     r = bandit.update_from_engagement("x:emoji-led", raw_engagement=50.0)
     assert 0.0 <= r <= 1.0
     assert r == pytest.approx(0.5, abs=0.01)
+
+
+# ──────────────── report() — A/B winner + CI ────────────────
+
+
+def test_report_empty_when_no_arms(bandit):
+    assert bandit.report() == {}
+
+
+def test_report_groups_arms_by_platform_prefix(bandit):
+    bandit.update("x:emoji-led", reward=0.8)
+    bandit.update("x:question-led", reward=0.3)
+    bandit.update("reddit:value-first", reward=0.5)
+    rep = bandit.report(min_pulls=1)
+    assert "x" in rep
+    assert "reddit" in rep
+    assert len(rep["x"]["arms"]) == 2
+    assert len(rep["reddit"]["arms"]) == 1
+
+
+def test_report_picks_highest_mean_as_winner(bandit):
+    for _ in range(5):
+        bandit.update("x:emoji-led", reward=0.9)
+        bandit.update("x:question-led", reward=0.1)
+    rep = bandit.report(min_pulls=3)
+    assert rep["x"]["winner"] == "x:emoji-led"
+
+
+def test_report_no_winner_when_below_min_pulls(bandit):
+    bandit.update("x:emoji-led", reward=0.9)  # only 1 pull
+    rep = bandit.report(min_pulls=10)
+    assert rep["x"]["winner"] is None
+
+
+def test_report_includes_credible_intervals(bandit):
+    for _ in range(20):
+        bandit.update("x:emoji-led", reward=0.8)
+    rep = bandit.report(min_pulls=3)
+    arm = rep["x"]["arms"][0]
+    assert 0.0 <= arm["ci95_low"] <= arm["mean"] <= arm["ci95_high"] <= 1.0
+
+
+def test_report_flags_low_sample_warning(bandit):
+    """Winner determined but n_pulls < 10 → sample_size_warning=True."""
+    for _ in range(4):
+        bandit.update("x:emoji-led", reward=0.9)
+    rep = bandit.report(min_pulls=3)
+    assert rep["x"]["winner"] == "x:emoji-led"
+    assert rep["x"]["sample_size_warning"] is True

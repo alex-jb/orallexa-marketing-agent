@@ -187,6 +187,40 @@ def cmd_ui(args) -> int:
     return run_app(port=args.port)
 
 
+def cmd_autopsy(args) -> int:
+    """Explain why a specific posted item underperformed."""
+    from marketing_agent.autopsy import autopsy, render_markdown
+    report = autopsy(args.post_id, metric=args.metric)
+    md = render_markdown(report)
+    if args.out:
+        from pathlib import Path
+        Path(args.out).write_text(md, encoding="utf-8")
+        print(f"📄 autopsy written: {args.out}")
+    else:
+        print(md)
+    return 0
+
+
+def cmd_skills(args) -> int:
+    """Manage learned skills."""
+    if args.skills_action == "promote":
+        from marketing_agent.skill_promoter import promote
+        plat = Platform(args.platform) if args.platform else None
+        out = promote(
+            platform=plat, metric=args.metric,
+            skill_dir=args.dir, min_samples=args.min_samples,
+        )
+        if not out:
+            print("(no top-quartile posts found — need ≥4 posts on a "
+                   "platform with engagement data)")
+            return 0
+        print(f"✨ promoted {len(out)} post(s) → skills:")
+        for p in out:
+            print(f"   {p}")
+        return 0
+    return 1
+
+
 def cmd_image(args) -> int:
     """Generate (or suggest) a cover image for a post."""
     from marketing_agent.content.images import generate_image, suggest_image_prompt
@@ -222,6 +256,25 @@ def cmd_bandit(args) -> int:
         for r in rows:
             print(f"  {r['variant_key']:25s}  {r['n_pulls']:>5d}  "
                   f"{r['mean']:>6.3f}  {r['alpha']:>6.2f}  {r['beta']:>6.2f}")
+        return 0
+    if args.action == "report":
+        report = b.report(min_pulls=args.min_pulls)
+        if not report:
+            print("(no arms yet)")
+            return 0
+        for plat, info in report.items():
+            print(f"\n━━━ {plat.upper()} ━━━")
+            if info["winner"]:
+                warn = "  ⚠ low sample" if info["sample_size_warning"] else ""
+                print(f"🏆 winner: {info['winner']}{warn}")
+            else:
+                print(f"(no arm has ≥{args.min_pulls} pulls — need more data)")
+            print(f"  {'variant':25s}  {'pulls':>5s}  {'mean':>6s}  "
+                  f"{'95% CI':>15s}")
+            for a in info["arms"]:
+                ci = f"[{a['ci95_low']:.2f}, {a['ci95_high']:.2f}]"
+                print(f"  {a['variant_key']:25s}  {a['n_pulls']:>5d}  "
+                      f"{a['mean']:>6.3f}  {ci:>15s}")
         return 0
     if args.action == "update":
         b.update(args.variant_key, reward=args.reward)
@@ -360,6 +413,33 @@ def main(argv: Optional[list[str]] = None) -> int:
     u.add_argument("--port", type=int, default=8501)
     u.set_defaults(func=cmd_ui)
 
+    ap_aut = sub.add_parser(
+        "autopsy", help="Explain why a posted item underperformed")
+    ap_aut.add_argument("--post-id", required=True,
+                          help="External id of a previously posted item")
+    ap_aut.add_argument("--metric", default="like",
+                          help="Engagement metric to benchmark against")
+    ap_aut.add_argument("--out", default=None,
+                          help="Write report to this path (default: stdout)")
+    ap_aut.set_defaults(func=cmd_autopsy)
+
+    sk = sub.add_parser("skills", help="Manage learned skills")
+    sk_sub = sk.add_subparsers(dest="skills_action", required=True)
+    sk_promote = sk_sub.add_parser(
+        "promote",
+        help="Auto-promote top-quartile engagement posts into skills/learned/",
+    )
+    sk_promote.add_argument("--platform", default=None,
+                              choices=[p.value for p in Platform],
+                              help="Filter to one platform (default: all)")
+    sk_promote.add_argument("--metric", default="like",
+                              help="Engagement metric to rank by")
+    sk_promote.add_argument("--dir", default="skills/learned",
+                              help="Output directory for promoted skills")
+    sk_promote.add_argument("--min-samples", type=int, default=4,
+                              help="Min posts/platform before promotion fires")
+    sk.set_defaults(func=cmd_skills)
+
     img = sub.add_parser("image", help="Generate a cover image for a post")
     img.add_argument("--name", required=True)
     img.add_argument("--tagline", required=True)
@@ -379,6 +459,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     bd = sub.add_parser("bandit", help="Inspect / train the variant bandit")
     bd_sub = bd.add_subparsers(dest="action", required=True)
     bd_sub.add_parser("stats", help="Show per-arm posterior")
+    bd_rpt = bd_sub.add_parser(
+        "report", help="Per-platform A/B winner with 95% credible intervals")
+    bd_rpt.add_argument("--min-pulls", type=int, default=3,
+                         help="Min pulls per arm before naming a winner")
     bd_up = bd_sub.add_parser("update", help="Manually update an arm with a reward in [0,1]")
     bd_up.add_argument("variant_key")
     bd_up.add_argument("--reward", type=float, required=True)

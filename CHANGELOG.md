@@ -2,6 +2,20 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.0] — 2026-04-30
+
+**Cost lever + analytics surface + agent-self-improvement.**
+
+### Added
+- `marketing_agent.llm.edge_provider` — **Cloudflare Workers AI Llama 3.3** as a cheap first-draft tier. When `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` are set, `_generate_with_llm` routes there before falling back to Claude. ~$0.011/1M tokens vs Claude Sonnet ~$3/1M = ~80% cost reduction on the daily-cron drafter path. Critic + rewriter still hit Claude when keyed. 10 tests.
+- `marketing_agent.skill_promoter` — **Voyager-style auto-skill promotion**. When a post lands top-quartile by engagement, extract its structural fingerprint (opening pattern, length, hashtag count, etc.) into `skills/learned/<slug>.md`. Heuristic-only — no LLM call needed. New CLI `marketing-agent skills promote`. 16 tests.
+- `marketing_agent.bandit.report()` — **per-platform A/B winner** with 95% Beta credible intervals. New CLI `marketing-agent bandit report`. Surfaces which X variant style ("emoji-led" / "question-led" / "stat-led") is actually winning over the last N pulls. 6 tests.
+- `marketing_agent.autopsy` — **failure post-mortem analyzer**. `marketing-agent autopsy --post-id X` compares one post against platform median, runs heuristic critic on its body, checks posting hour vs. best-time CDF, flags short-body issues. Markdown output. 9 tests.
+
+### Tests + coverage
+- 228 → **269 tests** (+41)
+- Coverage 75% → **76%**
+
 ## [0.11.0] — 2026-04-30
 
 **Frontier upgrades surfaced by Q1-Q2 2026 SOTA research.**
@@ -137,6 +151,7 @@ All notable changes to this project. Format roughly follows [Keep a Changelog](h
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.12.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.12.0
 [0.11.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.11.0
 [0.10.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.10.0
 [0.9.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.9.0

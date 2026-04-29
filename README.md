@@ -2,9 +2,9 @@
 
 **English** | [中文](README.zh-CN.md)
 
-[![Version](https://img.shields.io/badge/version-0.11.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-228%20passing-brightgreen.svg)](#)
-[![Coverage](https://img.shields.io/badge/coverage-75%25-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.12.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-269%20passing-brightgreen.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-76%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -103,7 +103,8 @@ Roadmap:
 - [x] **v0.9** — hardening sprint: reply_suggester 0%→81% coverage · X/Bluesky/Mastodon image upload mock tests · MCP tool integration tests · BM25 single-doc fix · shared critic min-score constant · CHANGELOG.md · CI floor 60%→70%
 - [x] **v0.10** — Streamlit queue UI (`marketing-agent ui`, browser/phone-friendly) · scheduled posting (`scheduled_for` frontmatter + hourly cron + `marketing-agent schedule --best-time`) · CLI smoke tests (cli.py 0% → covered) · 198 tests, 76% coverage
 - [x] **v0.11** — **ICPL** (in-context preference learning from edits, no fine-tune needed) · **multi-LLM ensemble critic** via LiteLLM (Claude + GPT-5 + Gemini majority vote) · **self-consistency-3** for short-form supervisor · **Bluesky firehose listener** (free real-time engagement, vs X's $42k/yr Enterprise webhook) · 228 tests, 75% coverage
-- [ ] **v0.12** — DSPy compilation against engagement history · Computer Use 知乎/小红书 publishing · Auto-skill-promotion (Voyager-style) · Edge inference fallback (Cloudflare Workers AI) · PyPI auto-publish on tag
+- [x] **v0.12** — **Edge inference fallback** (Cloudflare Workers AI Llama 3.3 as cheap drafter, ~80% cost reduction vs Claude) · **Voyager-style auto-skill promotion** (top-quartile posts → `skills/learned/*.md`) · **A/B variants report** (per-platform winner with 95% credible intervals) · **Failure post-mortem** (`marketing-agent autopsy --post-id X` heuristic explanation) · 269 tests, 76% coverage
+- [ ] **v0.13** — DSPy compilation against engagement history · Computer Use 知乎/小红书 publishing · X engagement webhook (deferred — Enterprise tier $$) · PyPI auto-publish on tag
 - [ ] **v1.0** — open-source launch · YC application
 
 ---

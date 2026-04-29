@@ -73,10 +73,15 @@ def _generate_with_llm(
     *,
     subreddit: Optional[str] = None,
 ) -> Post:
-    """Use Claude to write platform-specific content."""
-    from anthropic import Anthropic
+    """Generate via LLM. Routes to cheapest configured provider:
 
-    client = Anthropic()
+      1. Cloudflare Workers AI Llama 3.3 (~$0.011/1M tokens, when keyed)
+      2. Anthropic Claude Sonnet 4.6 (default — preserves prompt-caching
+         + ICPL behavior)
+
+    Critic + rewriter still hit Claude (via supervisor.py) when keyed —
+    edge tier is only the cheap first-draft path.
+    """
     system_prompt = _system_for(platform)
     user_prompt = _user_prompt_for(project, platform, subreddit=subreddit)
 
@@ -92,6 +97,29 @@ def _generate_with_llm(
             user_prompt = block + "\n\n" + user_prompt
     except Exception:
         pass
+
+    # Tier 1: Cloudflare edge inference. Falls through to Claude on any
+    # failure or when Cloudflare envs aren't set.
+    try:
+        from marketing_agent.llm.edge_provider import (
+            complete_via_edge, is_edge_configured,
+        )
+        if is_edge_configured():
+            edge_text = complete_via_edge(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=600,
+            )
+            if edge_text:
+                cleaned = edge_text.strip().strip('"').strip("'").strip()
+                return _post_for(platform, cleaned, project,
+                                    subreddit=subreddit).with_count()
+    except Exception:
+        pass
+
+    # Tier 2: Anthropic Claude (default path)
+    from anthropic import Anthropic
+    client = Anthropic()
 
     # Prompt caching: the system prompt (~200-400 tokens of style guide)
     # is stable across all daily-cron calls. Marking it cache_control
