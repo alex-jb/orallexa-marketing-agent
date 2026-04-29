@@ -2,8 +2,8 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-116%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-123%20passing-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -94,7 +94,8 @@ Roadmap：
 - [x] **v0.4** — 变体 bandit · 最佳发帖时间 · MCP server · 60/90 天 plan · PH-相对时序
 - [x] **v0.5** — critic gate + 语义去重 + 重试 + 结构化日志 + GitHub release webhook + CI
 - [x] **v0.6** — supervisor (Drafter→Critic→Rewriter) + reflexion memory + 混合检索 (BM25+稠密) + Claude Agent SDK 适配器 + prompt caching + 多项目 config + Skill + A2A card + Docker
-- [ ] **v0.7** — Phoenix / OTel observability · Imagen 4 / Nano Banana 2 配图生成 · DSPy prompt 编译 · PyPI 发布
+- [x] **v0.7** — 真实配图生成（Pollinations / Flux schnell，免费、无 key）· X 媒体上传（自动给推文挂图）· `image` CLI 子命令 · `Post.image_url` 字段
+- [ ] **v0.8** — Phoenix / OTel observability · Imagen 4 / Nano Banana 2（付费高质图）· DSPy prompt 编译 · PyPI 发布
 - [ ] **v1.0** — 开源公开 launch · YC 申请
 
 ---

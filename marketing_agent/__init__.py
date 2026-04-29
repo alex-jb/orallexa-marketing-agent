@@ -21,7 +21,7 @@ from marketing_agent.supervisor import supervise, SupervisorResult
 from marketing_agent.reflexion_memory import ReflexionMemory
 from marketing_agent.multiproject import ProjectConfig, load_config
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",

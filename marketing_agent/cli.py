@@ -142,6 +142,28 @@ def cmd_plan(args) -> int:
     return 0
 
 
+def cmd_image(args) -> int:
+    """Generate (or suggest) a cover image for a post."""
+    from marketing_agent.content.images import generate_image, suggest_image_prompt
+    project = Project(name=args.name, tagline=args.tagline,
+                       description=args.description)
+    plat = Platform(args.platform)
+    if args.suggest_only:
+        prompt = suggest_image_prompt(project, platform=plat, style=args.style)
+        print(prompt)
+        return 0
+    result = generate_image(project, platform=plat, style=args.style,
+                              prompt_override=args.prompt, model=args.model)
+    if not result["url"]:
+        print(f"❌ Image generation failed (backend={result['backend']})")
+        print(f"   Prompt was: {result['prompt']}")
+        return 1
+    print(f"🖼  {result['url']}")
+    print(f"   {result['width']}×{result['height']}  ·  backend={result['backend']}")
+    print(f"   prompt: {result['prompt'][:120]}{'...' if len(result['prompt']) > 120 else ''}")
+    return 0
+
+
 def cmd_bandit(args) -> int:
     """Inspect or update the variant bandit."""
     from marketing_agent.bandit import VariantBandit
@@ -273,6 +295,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     pl.add_argument("--mode", choices=["template", "llm"], default="template")
     pl.add_argument("--out-dir", default="docs")
     pl.set_defaults(func=cmd_plan)
+
+    img = sub.add_parser("image", help="Generate a cover image for a post")
+    img.add_argument("--name", required=True)
+    img.add_argument("--tagline", required=True)
+    img.add_argument("--description", default=None)
+    img.add_argument("--platform", default="x",
+                      choices=[p.value for p in Platform])
+    img.add_argument("--style", default="minimalist",
+                      help="Visual style hint passed to the image prompt")
+    img.add_argument("--model", default="flux",
+                      help="Pollinations model: flux | flux-realism | turbo")
+    img.add_argument("--prompt", default=None,
+                      help="Override the auto-generated prompt with this exact string")
+    img.add_argument("--suggest-only", action="store_true",
+                      help="Just print the prompt; don't generate an image URL")
+    img.set_defaults(func=cmd_image)
 
     bd = sub.add_parser("bandit", help="Inspect / train the variant bandit")
     bd_sub = bd.add_subparsers(dest="action", required=True)

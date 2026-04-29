@@ -69,6 +69,11 @@ class Post(BaseModel):
         description="Stable identifier of the stylistic variant for bandit selection, "
                     "e.g. 'x:emoji-led', 'x:question-led', 'reddit:value-first'.",
     )
+    image_url: Optional[str] = Field(
+        None,
+        description="Optional cover image URL. Pollinations / Gemini-generated. "
+                    "X adapter downloads & uploads via media/upload.json before posting.",
+    )
 
     def with_count(self) -> "Post":
         """Return a copy with char_count populated."""
