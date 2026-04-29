@@ -131,13 +131,17 @@ def _normalize_bm25(scores: list[float]) -> list[float]:
 
     Edge cases:
       - Empty list → [].
-      - Single non-zero score → [1.0] (it IS the best match by definition).
-      - All-zero or all-equal → all 0.0.
+      - Single non-zero score → [0.5]. With only one corpus doc we have
+        no reference for what "high" BM25 means, so we return a neutral
+        midpoint instead of biasing dedup toward "this is the best match"
+        (was [1.0] in v0.6, which over-confidently flagged single-corpus
+        cases as near-duplicates).
+      - All-zero or all-equal across multiple → all 0.0.
     """
     if not scores:
         return []
     if len(scores) == 1:
-        return [1.0 if scores[0] > 0 else 0.0]
+        return [0.5 if scores[0] > 0 else 0.0]
     lo, hi = min(scores), max(scores)
     if hi <= lo:
         return [0.0 for _ in scores]

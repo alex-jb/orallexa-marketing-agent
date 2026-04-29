@@ -2,8 +2,9 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-132%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen.svg)](#)
+[![Coverage](https://img.shields.io/badge/coverage-70%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -96,7 +97,8 @@ Roadmap：
 - [x] **v0.6** — supervisor (Drafter→Critic→Rewriter) + reflexion memory + 混合检索 (BM25+稠密) + Claude Agent SDK 适配器 + prompt caching + 多项目 config + Skill + A2A card + Docker
 - [x] **v0.7** — 真实配图生成（Pollinations / Flux schnell，免费、无 key）· X 媒体上传（自动给推文挂图）· `image` CLI 子命令 · `Post.image_url` 字段
 - [x] **v0.8** — Phoenix / OTel 可观测性（opt-in `[observability]` extras）· DSPy signatures 框架（4 个 typed Signature，compile 钩子已就位）· PyPI 构建产物 + `publish-pypi.yml` workflow · `py.typed` 标记
-- [ ] **v0.9** — DSPy 用 engagement 历史编译 · Imagen 4 / Nano Banana 2 付费层 · Streamlit queue UI · PyPI tag-触发自动发布
+- [x] **v0.9** — 加固 sprint：reply_suggester 覆盖率 0% → 81% · X/Bluesky/Mastodon 配图上传 mock 测试 · MCP 工具集成测试 · BM25 单 doc 边界修复 · critic min-score 单点常量化 · CHANGELOG.md · CI floor 60% → 70%
+- [ ] **v0.10** — DSPy 用 engagement 历史编译 · Imagen 4 / Nano Banana 2 付费层 · Streamlit queue UI · PyPI tag-触发自动发布
 - [ ] **v1.0** — 开源公开 launch · YC 申请
 
 ---

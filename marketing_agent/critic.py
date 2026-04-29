@@ -58,6 +58,12 @@ _PLATFORM_LIMITS: dict[Platform, int] = {
     Platform.DEV_TO: 100000,
 }
 
+# Single source of truth for the auto-reject threshold.
+# Used by both the critic itself AND queue.submit()'s gate. Override one
+# place and the other follows. Tuned by observation: scores at or below 4.0
+# are unfailingly bad; 4.5+ is occasionally salvageable; 7+ is shippable.
+DEFAULT_MIN_SCORE = 4.0
+
 
 @dataclass
 class CritiqueResult:
@@ -127,7 +133,7 @@ def heuristic_score(post: Post) -> CritiqueResult:
     return CritiqueResult(
         score=round(score, 2),
         reasons=reasons,
-        auto_reject=score < 4.0,
+        auto_reject=score < DEFAULT_MIN_SCORE,
     )
 
 
@@ -164,7 +170,7 @@ def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]
         return CritiqueResult(
             score=round(score, 2),
             reasons=[f"llm: {reason}"],
-            auto_reject=score < 4.0,
+            auto_reject=score < DEFAULT_MIN_SCORE,
         )
     except Exception as e:
         log.debug("llm_score failed (silent fallback): %s", e)
@@ -172,7 +178,7 @@ def llm_score(post: Post, *, project_name: str = "") -> Optional[CritiqueResult]
 
 
 def critique(post: Post, *, project_name: str = "",
-              min_score: float = 4.0,
+              min_score: float = DEFAULT_MIN_SCORE,
               use_llm: bool = True) -> CritiqueResult:
     """Combined critic: heuristic always, LLM blends in when available.
 

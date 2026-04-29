@@ -43,7 +43,7 @@ class ApprovalQueue:
     def submit(self, post: Post, project_name: str,
                 generated_by: str = "auto", *,
                 gate: bool = True,
-                min_score: float = 4.0,
+                min_score: float | None = None,
                 dedup_threshold: float = 0.92) -> Path:
         """Write a post into pending/ (or rejected/ if it fails the gate).
 
@@ -64,12 +64,15 @@ class ApprovalQueue:
         target_dir = "pending"
         if gate:
             try:
-                from marketing_agent.critic import critique
+                from marketing_agent.critic import DEFAULT_MIN_SCORE, critique
                 from marketing_agent.semantic_dedup import SemanticDedupIndex
                 from marketing_agent.memory import _hash
 
+                effective_min_score = (
+                    min_score if min_score is not None else DEFAULT_MIN_SCORE
+                )
                 crit = critique(post, project_name=project_name,
-                                  min_score=min_score, use_llm=True)
+                                  min_score=effective_min_score, use_llm=True)
                 if crit.auto_reject:
                     gate_note = (f"auto-rejected by critic (score {crit.score}/10): "
                                   f"{'; '.join(crit.reasons) or 'low quality'}")

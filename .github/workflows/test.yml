@@ -36,11 +36,11 @@ jobs:
           PYTHONPATH: .
           MARKETING_AGENT_LOG_LEVEL: error
         run: |
-          # Coverage floor: 60% baseline. Ratchet up as we add tests for
-          # platform adapters (currently untestable without real API creds)
-          # and the MCP server transport.
+          # Coverage floor: 70%. Ratcheted up from 60% in v0.9.0.
+          # Remaining gaps: supervisor LLM-mode paths (60%), platform live
+          # HTTP paths (~50% — covered by mocks where feasible).
           pytest -q --cov=marketing_agent --cov-report=term-missing \
-                  --cov-report=xml --cov-fail-under=60
+                  --cov-report=xml --cov-fail-under=70
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.12'

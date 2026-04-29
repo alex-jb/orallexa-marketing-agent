@@ -58,18 +58,38 @@ class BlueskyAdapter:
         access = sess.json()["accessJwt"]
         did = sess.json()["did"]
 
-        # 2. Create the post
+        # 2. Optional image — upload as a blob, then reference in record.embed
+        embed = None
+        if post.image_url:
+            try:
+                blob = self._upload_blob(post.image_url, access)
+                if blob is not None:
+                    embed = {
+                        "$type": "app.bsky.embed.images",
+                        "images": [{"alt": "", "image": blob}],
+                    }
+            except Exception as e:
+                from marketing_agent.logging import get_logger
+                get_logger(__name__).warning(
+                    "Bluesky blob upload failed, posting text-only: %s", e,
+                    extra={"image_url": post.image_url})
+
+        record: dict = {
+            "$type": "app.bsky.feed.post",
+            "text": post.body,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+        if embed is not None:
+            record["embed"] = embed
+
+        # 3. Create the post
         resp = requests.post(
             f"{self.BASE}/com.atproto.repo.createRecord",
             headers={"Authorization": f"Bearer {access}"},
             json={
                 "repo": did,
                 "collection": "app.bsky.feed.post",
-                "record": {
-                    "$type": "app.bsky.feed.post",
-                    "text": post.body,
-                    "createdAt": datetime.now(timezone.utc).isoformat(),
-                },
+                "record": record,
             },
             timeout=15,
         )
@@ -77,3 +97,28 @@ class BlueskyAdapter:
         rkey = resp.json()["uri"].split("/")[-1]
         handle = os.getenv("BLUESKY_HANDLE")
         return f"https://bsky.app/profile/{handle}/post/{rkey}"
+
+    def _upload_blob(self, url: str, access_jwt: str) -> dict | None:
+        """Download a remote image and POST it to com.atproto.repo.uploadBlob.
+
+        Returns the blob descriptor dict suitable for record.embed.images, or
+        None on failure (caller falls back to text-only).
+        """
+        import urllib.request
+        import requests
+        with urllib.request.urlopen(url, timeout=15) as r:
+            data = r.read()
+        # Bluesky caps blobs at 1MB. Skip if larger.
+        if len(data) > 1_000_000:
+            return None
+        upload = requests.post(
+            f"{self.BASE}/com.atproto.repo.uploadBlob",
+            headers={
+                "Authorization": f"Bearer {access_jwt}",
+                "Content-Type": "image/jpeg",
+            },
+            data=data,
+            timeout=20,
+        )
+        upload.raise_for_status()
+        return upload.json().get("blob")
