@@ -187,6 +187,26 @@ def cmd_ui(args) -> int:
     return run_app(port=args.port)
 
 
+def cmd_trends(args) -> int:
+    """Show trending content across GitHub / HN / Reddit."""
+    from pathlib import Path
+    from marketing_agent.trends import aggregate, render_markdown
+    items = aggregate(
+        github_languages=args.languages or [""],
+        hn_query=args.hn_query or "",
+        subreddits=args.subreddits or [],
+        hours=args.hours,
+        limit_per_source=args.limit,
+    )
+    md = render_markdown(items, max_per_source=args.max_per_source)
+    if args.out:
+        Path(args.out).write_text(md, encoding="utf-8")
+        print(f"📈 trends digest written: {args.out}")
+    else:
+        print(md)
+    return 0
+
+
 def cmd_autopsy(args) -> int:
     """Explain why a specific posted item underperformed."""
     from marketing_agent.autopsy import autopsy, render_markdown
@@ -412,6 +432,26 @@ def main(argv: Optional[list[str]] = None) -> int:
     u = sub.add_parser("ui", help="Open the Streamlit queue UI in a browser")
     u.add_argument("--port", type=int, default=8501)
     u.set_defaults(func=cmd_ui)
+
+    tr = sub.add_parser(
+        "trends",
+        help="Aggregate GitHub / HN / Reddit trending → content ideas")
+    tr.add_argument("--languages", nargs="*", default=None,
+                     help="GitHub language tags (e.g. python javascript). "
+                          "Empty / unset = all languages.")
+    tr.add_argument("--hn-query", default="",
+                     help="HN Algolia query (default: all stories)")
+    tr.add_argument("--subreddits", nargs="*", default=None,
+                     help="Reddit subreddits to scan (e.g. MachineLearning IndieHackers)")
+    tr.add_argument("--hours", type=int, default=168,
+                     help="Lookback window in hours (default 1 week)")
+    tr.add_argument("--limit", type=int, default=15,
+                     help="Max items per source")
+    tr.add_argument("--max-per-source", type=int, default=10,
+                     help="Top N per source in the markdown digest")
+    tr.add_argument("--out", default=None,
+                     help="Write digest to this path (default: stdout)")
+    tr.set_defaults(func=cmd_trends)
 
     ap_aut = sub.add_parser(
         "autopsy", help="Explain why a posted item underperformed")

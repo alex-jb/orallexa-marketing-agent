@@ -208,6 +208,30 @@ def test_schedule_missing_file_errors(tmp_path):
     assert rc != 0
 
 
+# ──────────────── trends ────────────────
+
+
+def test_trends_runs_with_mocked_sources(monkeypatch, capsys):
+    """`marketing-agent trends` should produce a markdown digest."""
+    import marketing_agent.trends as tr
+    from marketing_agent.trends import TrendItem
+    monkeypatch.setattr(tr, "trending_github_repos",
+                          lambda **k: [TrendItem(source="github",
+                                                    title="owner/repo",
+                                                    url="https://github.com/owner/repo",
+                                                    score=500)])
+    monkeypatch.setattr(tr, "trending_hn_posts", lambda **k: [])
+    monkeypatch.setattr(tr, "trending_subreddit_posts", lambda *a, **k: [])
+    rc = cli.main([
+        "trends", "--languages", "python",
+        "--hours", "24", "--limit", "5",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Trends digest" in out
+    assert "owner/repo" in out
+
+
 # ──────────────── ui (graceful no-streamlit) ────────────────
 
 

@@ -2,6 +2,29 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.0] — 2026-04-30
+
+**Reactive → proactive: trends module for content ideation.**
+
+The agent has been *reactive* — given a project + commits, generate posts. v0.15 adds the proactive complement: scan what's trending in your niche right now so you can write fresh angles, not just rehash recent commits.
+
+### Added
+- `marketing_agent.trends` module with three free public sources (no API keys, stdlib HTTP only):
+  - `trending_github_repos(language, since)` — scrapes `github.com/trending` HTML, returns repos with stars + descriptions.
+  - `trending_hn_posts(query, hours, min_points)` — Hacker News Algolia API (`hn.algolia.com/api/v1/search`).
+  - `trending_subreddit_posts(subreddit, hours, min_score)` — Reddit's public `/.json` (no auth needed for read).
+- `aggregate(...)` — one call across all three, dedupes by URL, sorts by score.
+- `render_markdown(items)` — Markdown digest grouped by source with emoji headers + per-item stats.
+- New CLI: `marketing-agent trends --languages python --hn-query agent --subreddits MachineLearning IndieHackers --hours 168 --out trends.md`
+- 12 new tests verify each scraper's parsing + graceful network-failure fallback + aggregator dedup + markdown rendering.
+
+### Why this matters
+Closes the loop: agent now suggests **what** to post about, not just **how**. Especially valuable for the manually-published 中文 platforms (知乎 / 小红书) where you want to write about topics actually getting traction this week.
+
+### Tests
+- 287 → **300 tests** (+13)
+- Coverage 76% → **77%**
+
 ## [0.14.0] — 2026-04-30
 
 **Cross-provider usage logging — cost-audit-agent now sees 100% of LLM spend.**
@@ -192,6 +215,7 @@ v0.13 brought Anthropic spend into the cross-agent audit pipeline. v0.14 closes 
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.15.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.15.0
 [0.14.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.14.0
 [0.13.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.13.0
 [0.12.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.12.0
