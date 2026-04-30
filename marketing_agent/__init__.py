@@ -24,8 +24,12 @@ from marketing_agent.observability import init_tracing, span, traced
 from marketing_agent.dspy_signatures import (
     get_signatures, list_signatures, is_dspy_available,
 )
+# Note: do NOT re-export `trends_to_drafts` (function) from this package —
+# it would shadow the submodule of the same name and break
+# `import marketing_agent.trends_to_drafts`. Users should import the
+# function directly: `from marketing_agent.trends_to_drafts import trends_to_drafts`.
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",

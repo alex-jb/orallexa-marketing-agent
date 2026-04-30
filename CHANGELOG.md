@@ -2,6 +2,30 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.17.0] — 2026-04-30
+
+**Trends → drafts: closing the proactive loop.**
+
+v0.15 added `trends.py` (scan GitHub / HN / Reddit → markdown digest). That was reactive — the human still had to open the digest and decide what to write. v0.17 closes the loop: the agent now turns top trends into platform-specific drafts and pushes them into the approval queue automatically.
+
+### Added
+- `marketing_agent.trends_to_drafts` module (`trends_to_drafts(...)` + `DraftResult`). Pipeline:
+  1. Aggregate trends across configured GitHub languages / HN query / subreddits (or accept pre-built `items=`).
+  2. Take top N by score.
+  3. For each trend, build a synthetic `Project` whose `recent_changes[0]` is a "Trending now (source): title — summary [url]" hook and whose `description` carries an explicit framing instruction telling the LLM to connect the project's angle to the trend (without claiming the trend as the project's own).
+  4. Fan out across requested platforms via the existing `content/generator.generate_posts` pipeline — reuses ICPL preference few-shots, Cloudflare edge tier, prompt caching, per-platform voice guides, cross-provider usage logging, and the critic + semantic-dedup gate inside `ApprovalQueue.submit()`.
+  5. Drafts land in `pending/` with `generated_by: trends`.
+- New CLI: `marketing-agent trends-to-drafts --name <p> --tagline <t> --languages python --hn-query agent --subreddits MachineLearning --platforms x linkedin --top-n 5`.
+- 12 new tests covering: synthetic-project shape (hook position, framing instruction, missing-description fallback, URL inclusion), happy path (3 trends × 2 platforms = 6 drafts), `generated_by=trends` marker, `top_n` clamping, empty-trends short-circuit, aggregator argument forwarding, per-trend failure isolation, subreddit_target pass-through.
+- Per-trend generator failure no longer aborts the whole batch — failed trends just produce empty `queued_paths` and the loop continues.
+
+### Why this matters
+v0.15 was a one-way street (digest → human eyes → maybe a draft). The loop is now end-to-end: cron → trends.aggregate → top N → multi-platform drafts → human approval → publish. On a daily run with `--top-n 5 --platforms x linkedin`, that's 10 trend-anchored drafts in your inbox each morning — alongside the commit-driven drafts — without you ever opening the digest.
+
+### Tests
+- 310 → **322 tests** (+12)
+- Coverage steady at 77%
+
 ## [0.16.0] — 2026-04-30
 
 **Threads (Meta) auto-publish — first-mover window vs indie-OSS competitors.**

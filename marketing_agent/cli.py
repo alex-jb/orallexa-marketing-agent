@@ -207,6 +207,43 @@ def cmd_trends(args) -> int:
     return 0
 
 
+def cmd_trends_to_drafts(args) -> int:
+    """Aggregate trends → top N → fan out drafts into the approval queue."""
+    from marketing_agent.trends_to_drafts import trends_to_drafts
+    project = Project(
+        name=args.name, tagline=args.tagline,
+        description=args.description, github_url=args.github,
+        website_url=args.website, tags=args.tags or [],
+        target_audience=args.audience,
+        recent_changes=args.changes or [],
+    )
+    mode = {"template": GenerationMode.TEMPLATE, "llm": GenerationMode.LLM,
+            "hybrid": GenerationMode.HYBRID}[args.mode]
+    results = trends_to_drafts(
+        project=project,
+        platforms=[Platform(p) for p in args.platforms],
+        github_languages=args.languages or None,
+        hn_query=args.hn_query or "",
+        subreddits=args.subreddits or None,
+        hours=args.hours,
+        top_n=args.top_n,
+        mode=mode,
+        gate=not args.no_gate,
+        subreddit_target=args.subreddit,
+    )
+    if not results:
+        print("(no trending items found — nothing drafted)")
+        return 0
+    total_queued = sum(len(r.queued_paths) for r in results)
+    print(f"📥 {total_queued} draft(s) from {len(results)} trend(s):")
+    for r in results:
+        marker = "  " if r.queued_paths else "✗ "
+        print(f"{marker}[{r.trend.source}] {r.trend.title[:80]}")
+        for p in r.queued_paths:
+            print(f"     → {p}")
+    return 0
+
+
 def cmd_autopsy(args) -> int:
     """Explain why a specific posted item underperformed."""
     from marketing_agent.autopsy import autopsy, render_markdown
@@ -452,6 +489,42 @@ def main(argv: Optional[list[str]] = None) -> int:
     tr.add_argument("--out", default=None,
                      help="Write digest to this path (default: stdout)")
     tr.set_defaults(func=cmd_trends)
+
+    ttd = sub.add_parser(
+        "trends-to-drafts",
+        help="Trends → top N → drafts in approval queue (closes the loop)")
+    ttd.add_argument("--name", required=True,
+                       help="Your project name")
+    ttd.add_argument("--tagline", required=True,
+                       help="Your project's one-line tagline")
+    ttd.add_argument("--description", default=None)
+    ttd.add_argument("--github", default=None)
+    ttd.add_argument("--website", default=None)
+    ttd.add_argument("--tags", nargs="*", default=None)
+    ttd.add_argument("--audience", default=None,
+                       help="Target audience description")
+    ttd.add_argument("--changes", nargs="*", default=None,
+                       help="Recent commits / changes (kept after the trend hook)")
+    ttd.add_argument("--platforms", nargs="+",
+                       default=["x", "linkedin"],
+                       help="Platforms to fan out per trend")
+    ttd.add_argument("--subreddit", default=None,
+                       help="Subreddit slug if posting to Reddit")
+    ttd.add_argument("--languages", nargs="*", default=None,
+                       help="GitHub trending languages (default: all)")
+    ttd.add_argument("--hn-query", default="",
+                       help="HN Algolia query (default: all stories)")
+    ttd.add_argument("--subreddits", nargs="*", default=None,
+                       help="Subreddits to scan for trends")
+    ttd.add_argument("--hours", type=int, default=168,
+                       help="Lookback window in hours (default 1 week)")
+    ttd.add_argument("--top-n", type=int, default=5,
+                       help="How many top trends become drafts")
+    ttd.add_argument("--mode", choices=["template", "llm", "hybrid"],
+                       default="hybrid")
+    ttd.add_argument("--no-gate", action="store_true",
+                       help="Skip critic + semantic-dedup gate on submission")
+    ttd.set_defaults(func=cmd_trends_to_drafts)
 
     ap_aut = sub.add_parser(
         "autopsy", help="Explain why a posted item underperformed")
