@@ -40,6 +40,7 @@ def get_adapter(platform: Platform) -> PlatformAdapter:
     from marketing_agent.platforms.dev_to import DevToAdapter
     from marketing_agent.platforms.bluesky import BlueskyAdapter
     from marketing_agent.platforms.mastodon import MastodonAdapter
+    from marketing_agent.platforms.threads import ThreadsAdapter
     from marketing_agent.platforms.zhihu import ZhihuAdapter
     from marketing_agent.platforms.xiaohongshu import XiaohongshuAdapter
 
@@ -50,6 +51,7 @@ def get_adapter(platform: Platform) -> PlatformAdapter:
         Platform.DEV_TO: DevToAdapter,
         Platform.BLUESKY: BlueskyAdapter,
         Platform.MASTODON: MastodonAdapter,
+        Platform.THREADS: ThreadsAdapter,
         Platform.ZHIHU: ZhihuAdapter,
         Platform.XIAOHONGSHU: XiaohongshuAdapter,
     }

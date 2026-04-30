@@ -2,8 +2,8 @@
 
 **English** | [中文](README.zh-CN.md)
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-300%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.16.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-77%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
@@ -80,7 +80,7 @@ What works today:
 |---|---|
 | **Agentic core** | **Drafter → Critic → Rewriter supervisor** (Reflexion-lite, no LangGraph dep) · **persistent reflexion memory** (cross-session learning from past failures) · **Claude Agent SDK adapter** (uses official SDK 0.1.68+ when installed; falls back gracefully) · **prompt caching markers** on all LLM calls (cuts cost ~80% on daily cron) |
 | **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester · N stylistic variants per platform |
-| **Platforms — auto-publish** | X (real, OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) |
+| **Platforms — auto-publish** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · **Threads (Meta Graph API, production April 2026, 250 posts/24h)** |
 | **Platforms — content-prep only** | Dev.to (markdown export, manual paste) · LinkedIn (API restricted) · **知乎 / 小红书 (manual publish, never auto — see [Chinese platform strategy](#chinese-platform-strategy-2026-reality))** |
 | **Quality gate** | Heuristic + LLM critic (auto-rejects hype/spam/length-fail before queuing) · **hybrid retrieval dedup** (60% dense + 40% BM25, +17pp MRR vs dense-alone) — never repost a paraphrase |
 | **Reliability** | Exponential-backoff retry on all platform adapters (transient errors, 429, 5xx) · structured JSON logs (Langfuse / OTel-compatible) |
