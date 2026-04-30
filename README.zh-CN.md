@@ -2,8 +2,8 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.15.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-300%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.16.0-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-77%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
@@ -77,7 +77,7 @@ make demo      # 跑 examples/generic_demo.py — 全离线，模板模式
 |---|---|
 | **Agent 内核** | **Drafter → Critic → Rewriter supervisor**（Reflexion-lite，无需 LangGraph 依赖）· **持久化 reflexion memory**（跨 session 学习历史失败模式）· **Claude Agent SDK 适配器**（装了就用官方 SDK 0.1.68+，否则降级）· **Prompt caching 标记**（key 配上后 daily cron 省 ~80% 输入 token） |
 | **内容生成** | Claude Sonnet 4.6 / Haiku 4.5 或模板降级 · 自动拆 thread · 配图 prompt suggester · 每平台 N 个风格变体 |
-| **支持平台 — 自动发布** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) |
+| **支持平台 — 自动发布** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · **Threads（Meta Graph API，2026 年 4 月正式开放，每用户 24h 250 条）** |
 | **支持平台 — 内容准备** | Dev.to (markdown 导出，手动粘) · LinkedIn (API 限制严) · **知乎 / 小红书（手动发，永远不自动 — 见[中文平台策略](#中文平台策略--2026-反爬现实)）** |
 | **质量门** | Heuristic + LLM critic 自动拒废稿（hype 词、字数超限、全大写、hashtag 灌水）· **混合检索去重**（60% 稠密 + 40% BM25，比纯稠密 +17pp MRR） |
 | **可靠性** | 平台 adapter 指数退避重试（429 / 5xx / 网络抖动） · 结构化 JSON 日志（Langfuse / OTel 兼容） |

@@ -2,6 +2,26 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.16.0] — 2026-04-30
+
+**Threads (Meta) auto-publish — first-mover window vs indie-OSS competitors.**
+
+### Added
+- `marketing_agent.platforms.threads` — Threads (Meta Graph API) auto-publish adapter. Production API as of April 2026, 250 posts/24h/user. Two-step Meta-style flow: `/v1.0/{user-id}/threads` (create container) → `/v1.0/{user-id}/threads_publish`. Image upload via `image_url` parameter (reuses Pollinations URLs from v0.7).
+- New env vars in `.env.example`: `THREADS_ACCESS_TOKEN`, `THREADS_USER_ID`.
+- `publish.yml` and `scheduled.yml` workflows now forward THREADS secrets.
+- 10 tests covering happy path (text-only + image), missing creds, char-limit overshoot, malformed Meta responses.
+
+### Why now
+Per April 2026 landscape research (4th deep-research dispatch this session): Threads API graduated to GA in April with 300M MAU. None of the existing indie-OSS marketing competitors (Postiz / Buffer / Hypefury) have native Threads integration. First-mover window.
+
+### Changed
+- `[agent_sdk]` extras bumped from `claude-agent-sdk>=0.1.68` to `>=0.1.71` (April 28-29 releases add `SessionStore` adapter protocol, `skills=[...]` option, in-process MCP fix, `SandboxNetworkConfig` domain allow/deny).
+
+### Tests
+- 300 → **310 tests** (+10)
+- Coverage 77% (steady)
+
 ## [0.15.0] — 2026-04-30
 
 **Reactive → proactive: trends module for content ideation.**
@@ -215,6 +235,7 @@ v0.13 brought Anthropic spend into the cross-agent audit pipeline. v0.14 closes 
 - Template + Claude content generator with HYBRID fallback.
 - `Orchestrator` — high-level `project → posts → distribute`.
 
+[0.16.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.16.0
 [0.15.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.15.0
 [0.14.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.14.0
 [0.13.0]: https://github.com/alex-jb/orallexa-marketing-agent/releases/tag/v0.13.0
