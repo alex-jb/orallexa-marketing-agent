@@ -122,7 +122,7 @@ REPO_PRESETS: dict[str, dict] = {
 def _run_for_project(*, repo: str, preset: dict, hours: int,
                        platforms: list[str], subreddit: Optional[str],
                        dry_run: bool, to_queue: bool, force: bool,
-                       mode_str: str) -> int:
+                       mode_str: str, n_variants: int = 1) -> int:
     """Run the daily flow for ONE (repo, preset) pair. Returns count queued
     (when to_queue=True) or 0 on early-exit."""
     print(f"\n━━━ {preset['name']}  ({repo}) ━━━")
@@ -146,8 +146,9 @@ def _run_for_project(*, repo: str, preset: dict, hours: int,
             "hybrid": GenerationMode.HYBRID}[mode_str]
     orch = Orchestrator(mode=mode)
 
-    print(f"🤖 Generating posts (mode={mode.value})...")
-    posts = orch.generate(project, platforms_e, subreddit=subreddit)
+    print(f"🤖 Generating posts (mode={mode.value}, n_variants={n_variants})...")
+    posts = orch.generate(project, platforms_e, subreddit=subreddit,
+                              n_variants=n_variants)
 
     if to_queue:
         q = ApprovalQueue()
@@ -319,6 +320,13 @@ def main() -> int:
     ap.add_argument("--to-queue", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
+    ap.add_argument("--variants", type=int, default=1,
+                    help="Generate N stylistic variants per platform; bandit "
+                          "picks one (currently only X has multiple variants — "
+                          "emoji-led / question-led / stat-led). Without this "
+                          "flag the cron only ever produces emoji-led drafts and "
+                          "the bandit can never learn the other variants' real "
+                          "performance.")
     ap.add_argument("--trends-too", action="store_true",
                     help="After the commit-driven loop, also run "
                           "trends_to_drafts per project when the config has "
@@ -352,6 +360,7 @@ def main() -> int:
                 platforms=plats, subreddit=sub,
                 dry_run=args.dry_run, to_queue=args.to_queue,
                 force=args.force, mode_str=args.mode,
+                n_variants=args.variants,
             )
             commit_count += queued
 
@@ -377,6 +386,7 @@ def main() -> int:
             platforms=args.platforms, subreddit=args.subreddit,
             dry_run=args.dry_run, to_queue=args.to_queue,
             force=args.force, mode_str=args.mode,
+            n_variants=args.variants,
         )
 
     total_queued = commit_count + trends_count

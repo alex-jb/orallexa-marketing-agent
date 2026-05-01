@@ -65,7 +65,7 @@ jobs:
             echo "🗂  Multi-project mode (reading marketing-agent.yml)"
             PYTHONPATH=. python3 scripts/daily_post.py \
               --config marketing-agent.yml --mode "$MODE" --to-queue \
-              --trends-too
+              --trends-too --variants 3
           else
             REPO="${{ github.event.inputs.single_repo || 'alex-jb/orallexa-ai-trading-agent' }}"
             PLATFORMS="${{ github.event.inputs.platforms || 'x' }}"
