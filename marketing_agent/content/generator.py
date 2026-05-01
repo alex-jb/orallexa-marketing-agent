@@ -38,8 +38,16 @@ def generate_posts(
                 out.append(templates.render(p, project, subreddit=subreddit))
             continue
 
+        # LLM path: when n_variants > 1 and the platform supports stylistic
+        # variants, use Thompson sampling to pre-select a variant_key BEFORE
+        # the LLM call (cheap — same N=1 LLM call as before, but bandit gets
+        # exploration + the resulting Post is tagged so engagement updates
+        # can flow back into the bandit posterior).
+        variant_hint = _bandit_variant_hint(p, n_variants)
         try:
-            out.append(_generate_with_llm(project, p, subreddit=subreddit))
+            out.append(_generate_with_llm(project, p,
+                                              subreddit=subreddit,
+                                              variant_hint=variant_hint))
         except Exception as e:
             if mode == GenerationMode.LLM:
                 raise  # caller asked for LLM-only; don't silently downgrade
@@ -57,6 +65,35 @@ def generate_posts(
             else:
                 out.append(templates.render(p, project, subreddit=subreddit))
     return out
+
+
+# Per-platform variant pools available to the LLM-path bandit.
+_LLM_VARIANT_POOLS: dict[Platform, list[str]] = {
+    Platform.X: ["emoji-led", "question-led", "stat-led"],
+}
+
+
+def _bandit_variant_hint(platform: Platform,
+                            n_variants: int) -> Optional[str]:
+    """Pick a stylistic variant via Thompson sampling for the LLM path.
+
+    Returns one of the platform's pool entries (e.g. "emoji-led") or None
+    when n_variants <= 1 / platform has no variants / bandit fails.
+    """
+    if n_variants <= 1:
+        return None
+    pool = _LLM_VARIANT_POOLS.get(platform)
+    if not pool:
+        return None
+    keys = [f"{platform.value}:{v}" for v in pool]
+    try:
+        from marketing_agent.bandit import VariantBandit
+        chosen_key = VariantBandit().choose(keys)
+        # Strip the "x:" prefix to get back the bare variant name.
+        prefix = f"{platform.value}:"
+        return chosen_key[len(prefix):] if chosen_key.startswith(prefix) else chosen_key
+    except Exception:
+        return None
 
 
 def _pick_with_bandit(variants: list[Post]) -> Post:
@@ -80,6 +117,7 @@ def _generate_with_llm(
     platform: Platform,
     *,
     subreddit: Optional[str] = None,
+    variant_hint: Optional[str] = None,
 ) -> Post:
     """Generate via LLM. Routes to cheapest configured provider:
 
@@ -89,8 +127,13 @@ def _generate_with_llm(
 
     Critic + rewriter still hit Claude (via supervisor.py) when keyed —
     edge tier is only the cheap first-draft path.
+
+    `variant_hint` (e.g. "emoji-led" / "question-led" / "stat-led") is
+    appended to the system prompt as a style constraint, AND tagged onto
+    the returned Post as `variant_key=<platform>:<hint>` so the bandit
+    can update its posterior from later engagement on this post.
     """
-    system_prompt = _system_for(platform)
+    system_prompt = _system_for(platform, variant_hint=variant_hint)
     user_prompt = _user_prompt_for(project, platform, subreddit=subreddit)
 
     # ICPL: inject up to 5 recent (original → edited) pairs from this
@@ -121,7 +164,8 @@ def _generate_with_llm(
             if edge_text:
                 cleaned = edge_text.strip().strip('"').strip("'").strip()
                 return _post_for(platform, cleaned, project,
-                                    subreddit=subreddit).with_count()
+                                    subreddit=subreddit,
+                                    variant_hint=variant_hint).with_count()
     except Exception:
         pass
 
@@ -153,11 +197,14 @@ def _generate_with_llm(
     text = AnthropicClient.extract_text(resp).strip()
     text = text.strip('"').strip("'").strip()
 
-    return _post_for(platform, text, project, subreddit=subreddit).with_count()
+    return _post_for(platform, text, project, subreddit=subreddit,
+                        variant_hint=variant_hint).with_count()
 
 
-def _system_for(platform: Platform) -> str:
-    """Per-platform voice / constraints."""
+def _system_for(platform: Platform, *,
+                  variant_hint: Optional[str] = None) -> str:
+    """Per-platform voice / constraints, optionally with a stylistic
+    variant constraint appended."""
     base = (
         "You are writing on behalf of an indie OSS developer who is building "
         "in public. Voice: technical, honest, no marketing fluff, no hype "
@@ -183,7 +230,36 @@ def _system_for(platform: Platform) -> str:
             "Use H2 sections. Include a code block if relevant."
         ),
     }
-    return base + extras.get(platform, "")
+    out = base + extras.get(platform, "")
+    out += _variant_style_clause(variant_hint)
+    return out
+
+
+def _variant_style_clause(variant_hint: Optional[str]) -> str:
+    """Map a variant-hint string to a one-sentence style constraint.
+
+    Kept tiny + descriptive: the LLM doesn't need a paragraph, it needs
+    a clear lever. Unknown hints are ignored.
+    """
+    if not variant_hint:
+        return ""
+    table = {
+        "emoji-led": (
+            " Style: open the post with a single relevant emoji, then a "
+            "concrete observation. No emoji elsewhere in the body."
+        ),
+        "question-led": (
+            " Style: open with a question your target reader would think "
+            "but rarely say out loud. Answer it implicitly through what "
+            "the project shipped."
+        ),
+        "stat-led": (
+            " Style: open with one specific number (test count, latency, "
+            "cost, MAU, accuracy gain). The rest of the post justifies "
+            "why that number is interesting."
+        ),
+    }
+    return table.get(variant_hint, "")
 
 
 def _user_prompt_for(
@@ -209,9 +285,13 @@ def _user_prompt_for(
 
 
 def _post_for(platform: Platform, text: str, project: Project,
-               *, subreddit: Optional[str] = None) -> Post:
+               *, subreddit: Optional[str] = None,
+               variant_hint: Optional[str] = None) -> Post:
+    variant_key = (f"{platform.value}:{variant_hint}"
+                      if variant_hint else None)
     if platform == Platform.REDDIT:
         title = f"[Project] {project.name}: {project.tagline}"
         return Post(platform=platform, title=title, body=text,
-                    target=subreddit or "MachineLearning")
-    return Post(platform=platform, body=text)
+                    target=subreddit or "MachineLearning",
+                    variant_key=variant_key)
+    return Post(platform=platform, body=text, variant_key=variant_key)

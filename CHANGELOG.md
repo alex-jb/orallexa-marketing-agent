@@ -2,6 +2,30 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.2] — 2026-05-01
+
+**LLM-mode variant_key — bandit finally sees production data.**
+
+### The bug it fixes
+v0.4 introduced the variant bandit (Thompson Beta-conjugate over X stylistic variants: emoji-led / question-led / stat-led). Today's verification revealed that since v0.13 (when LLM mode became reliable), **no production cron run had ever fed the bandit a single data point** — `_generate_with_llm` produced posts without any `variant_key`, so the bandit only ever saw template-mode draws (which we'd already manually fed twice today, n=2 emoji-led).
+
+The combined effect: 12 cron runs/day × 3 projects × 2-3 platforms ≈ 70+ posts/week generated, and the bandit posterior had **2 data points total**, all on one variant.
+
+### Fix
+- `_bandit_variant_hint(platform, n_variants)` — when `n_variants > 1` and the platform has a defined variant pool (X today; LinkedIn / Reddit / Bluesky planned), use Thompson sampling to pre-select a variant_key BEFORE the LLM call.
+- `_generate_with_llm(..., variant_hint=...)` — accepts the hint, appends a one-sentence style clause to the system prompt (e.g. "open the post with a single relevant emoji"), and tags the returned Post with `variant_key=<platform>:<hint>`.
+- `_post_for(...)` — propagates `variant_hint` → `variant_key`.
+- `_variant_style_clause(hint)` — small per-hint clause table; unknown hints are no-ops so the table can grow without breaking callers.
+
+Cost: still **1 LLM call per platform per project** (no inflation). The bandit now gets exploration via Thompson sampling on the prior, and engagement updates flow back through `bandit.update_from_engagement(variant_key, …)` exactly as designed.
+
+### Why this matters
+This closes the third invisible silo of today's session (after secret-empty and silent-LLM-fallback). Every existing piece of bandit infrastructure — `bandit stats` CLI, `bandit report` per-platform A/B winners, autopsy's "your bandit may have better arms" recommendation — was outputting noise because no real arm-pull data existed. Starting with the next cron run, all three X variants get exposure proportional to posterior uncertainty, and the bandit will converge on the actual winner (or correctly tell us "no significant difference yet" via 95% CI overlap).
+
+### Tests
+- 384 → **400 tests** (+16): style-clause table, system-prompt augmentation, post-tagging, bandit-failure isolation, n_variants=1 no-op, unsupported-platform no-op, full HYBRID-path integration test mocking `_generate_with_llm`.
+- Coverage steady at 77%.
+
 ## [0.18.1] — 2026-05-01
 
 **Cross-agent SFOS interop pass — marketing-agent stops being a silo.**
