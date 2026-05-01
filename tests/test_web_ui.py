@@ -7,11 +7,7 @@ we can verify:
   - _queue_root() resolves env override
 """
 from __future__ import annotations
-import os
-import sys
-from pathlib import Path
 
-import pytest
 
 
 def test_module_imports():

@@ -12,9 +12,8 @@ on project metadata.
 """
 from __future__ import annotations
 import json
-import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -81,7 +80,7 @@ def default_plan(project: Project, *, days: int = 30,
                           rationale="Pre-PH teaser builds the warm audience that votes")]
           if ph > 0 else []),
         *([LaunchAction(day=max(0, ph - 1), platform=Platform.X, kind="post",
-                          topic=f"PH launch tomorrow — last call to follow",
+                          topic="PH launch tomorrow — last call to follow",
                           rationale="Day-before reminder; PH morning reach hinges on this")]
           if ph > 0 else []),
 

@@ -21,7 +21,6 @@ read past failure modes and steer away from them. (v0.5 stores the log;
 v0.6 will read it back into the system prompt.)
 """
 from __future__ import annotations
-import os
 import re
 from dataclasses import dataclass, field
 from typing import Optional

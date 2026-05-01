@@ -82,8 +82,8 @@ class XiaohongshuAdapter:
             f"━━━━━━━━━━ 算法友好的 hook 示例 ━━━━━━━━━━\n"
             + "\n".join(f"  · {h}" for h in RECOMMENDED_HOOKS)
             + "\n\n"
-            f"❌ 不要矩阵账号同步发同一篇 — Jan 2026 风控大扫荡封了 37 个账号\n"
-            f"❌ 不要写得太\"营销\" — 小红书的 voice 是个人化、casual、有故事感\n"
+            "❌ 不要矩阵账号同步发同一篇 — Jan 2026 风控大扫荡封了 37 个账号\n"
+            "❌ 不要写得太\"营销\" — 小红书的 voice 是个人化、casual、有故事感\n"
         )
 
     def post(self, post: Post) -> str:

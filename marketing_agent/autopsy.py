@@ -196,19 +196,19 @@ def render_markdown(report: dict) -> str:
     p = report["post"]
     lines = [
         f"# Post-mortem — {p['platform']} · {p['external_id']}",
-        f"",
+        "",
         f"*Posted {p['posted_at']} · "
         f"engagement: **{report['engagement']} {report['baseline']['n'] and 'likes' or '(no metric)'}** "
         f"vs platform median {report['baseline']['median']:.0f} "
         f"({report['baseline']['n']} peers)*",
-        f"",
-        f"## Body excerpt",
-        f"```",
+        "",
+        "## Body excerpt",
+        "```",
         p["body_preview"] or "",
-        f"```",
-        f"",
+        "```",
+        "",
         f"## Critic score: {report['critic']['score']}/10",
-        f"",
+        "",
     ]
     for r in report["critic"]["reasons"]:
         lines.append(f"- {r}")

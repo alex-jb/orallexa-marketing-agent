@@ -69,3 +69,17 @@ marketing_agent = ["py.typed"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line-length: docstrings + log messages run long; not a bug
+    "E731",  # lambda-assignment: idiomatic in tests
+    "E402",  # module-level import not at top: __future__ + sys.path tricks
+    "E702",  # multiple-statements-on-one-line: idiomatic in test fixtures
+    "E741",  # ambiguous-variable-name: short loop vars are fine in context
+]

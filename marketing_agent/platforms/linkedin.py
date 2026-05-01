@@ -9,7 +9,6 @@ TODO(alex): apply for LinkedIn Marketing Developer access; integrate
 linkedin-api or similar; revisit in Phase 2.
 """
 from __future__ import annotations
-import os
 
 from marketing_agent.types import Platform, Post
 from marketing_agent.platforms.base import NotConfigured

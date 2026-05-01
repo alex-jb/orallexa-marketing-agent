@@ -19,7 +19,6 @@ Posts with a generated image get 2-3x X engagement vs text-only (per Q1
 single content-quality lever after critic gating.
 """
 from __future__ import annotations
-import os
 import urllib.parse
 
 from marketing_agent.logging import get_logger

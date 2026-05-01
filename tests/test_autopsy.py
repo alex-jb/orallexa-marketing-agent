@@ -4,7 +4,6 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pytest
 
 from marketing_agent.autopsy import (
     _engagement_for_post, _fetch_post_by_external_id, _platform_baseline,

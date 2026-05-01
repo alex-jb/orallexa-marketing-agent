@@ -8,9 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-import pytest
 
-from marketing_agent.queue import ApprovalQueue
 from marketing_agent.reply_suggester import (
     Tweet, fetch_recent_tweets_from_handles, filter_relevant, llm_reply,
     suggest_replies_to_queue, template_reply,

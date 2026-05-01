@@ -1,10 +1,8 @@
 """Tests for Voyager-style auto-skill promotion."""
 from __future__ import annotations
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
 from marketing_agent.engagement import EngagementTracker
 from marketing_agent.memory import PostMemory

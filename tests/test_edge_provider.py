@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from marketing_agent.llm.edge_provider import (
     DEFAULT_MODEL, EdgeLLM, EdgeLLMResponse, complete_via_edge,

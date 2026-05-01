@@ -1,7 +1,6 @@
 """Tests for DSPy signatures — must work whether or not dspy is installed."""
 from __future__ import annotations
 
-import pytest
 
 from marketing_agent.dspy_signatures import (
     compile_if_keyed, get_signatures, is_dspy_available, list_signatures,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from marketing_agent.semantic_dedup import (
-    SemanticDedupIndex, _cosine, _pack, _unpack, embed,
+    SemanticDedupIndex, _cosine, _pack, _unpack,
 )
 from marketing_agent.types import Platform
 

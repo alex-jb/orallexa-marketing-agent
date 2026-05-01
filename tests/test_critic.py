@@ -1,7 +1,6 @@
 """Tests for the heuristic + LLM critic."""
 from __future__ import annotations
 
-import pytest
 
 from marketing_agent.critic import (
     CritiqueResult, critique, heuristic_score, llm_score,

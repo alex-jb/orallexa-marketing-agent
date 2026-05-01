@@ -199,7 +199,7 @@ def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
     from marketing_agent.trends import aggregate
     from marketing_agent.trends_to_drafts import trends_to_drafts
 
-    print(f"\n━━━ proactive pass: trends → drafts ━━━")
+    print("\n━━━ proactive pass: trends → drafts ━━━")
     print(f"   languages={tcfg.languages or '(all)'}  "
           f"hn_query={tcfg.hn_query!r}  subreddits={tcfg.subreddits}")
 

@@ -11,7 +11,6 @@ import json
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 # ──────────────── log_usage core ────────────────

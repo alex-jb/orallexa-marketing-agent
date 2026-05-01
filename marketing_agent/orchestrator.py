@@ -6,11 +6,11 @@ from __future__ import annotations
 from typing import Optional
 
 from marketing_agent.types import (
-    Engagement, GenerationMode, Platform, Post, Project,
+    GenerationMode, Platform, Post, Project,
 )
 from marketing_agent.content import generate_posts
 from marketing_agent.platforms.base import (
-    PlatformAdapter, NotConfigured, get_adapter,
+    PlatformAdapter, get_adapter,
 )
 
 

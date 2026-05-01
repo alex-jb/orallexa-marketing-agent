@@ -25,7 +25,6 @@ Publish flow (two-step, Meta-style):
 """
 from __future__ import annotations
 import os
-from typing import Optional
 
 from marketing_agent.retry import retry_on_transient
 from marketing_agent.types import Platform, Post

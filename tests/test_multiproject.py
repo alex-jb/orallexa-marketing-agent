@@ -1,11 +1,9 @@
 """Tests for multi-project YAML config."""
 from __future__ import annotations
-from pathlib import Path
 
-import pytest
 
 from marketing_agent.multiproject import (
-    ProjectConfig, TrendsConfig, _coerce, _parse_minimal_yaml, load_config,
+    TrendsConfig, _coerce, _parse_minimal_yaml, load_config,
     load_trends_config,
 )
 

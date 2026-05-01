@@ -1,7 +1,6 @@
 """Tests for the Drafter → Critic → Rewriter supervisor loop."""
 from __future__ import annotations
 
-import pytest
 
 from marketing_agent.critic import CritiqueResult
 from marketing_agent.supervisor import (

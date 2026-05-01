@@ -1,7 +1,6 @@
 """Tests for observability — must work whether or not OTel is installed."""
 from __future__ import annotations
 
-import pytest
 
 from marketing_agent.observability import is_enabled, span, traced
 

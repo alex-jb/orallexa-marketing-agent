@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from marketing_agent.trends import (
     TrendItem, _http_get, aggregate, render_markdown,

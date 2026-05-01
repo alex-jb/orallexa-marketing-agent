@@ -5,7 +5,6 @@ mock generate_posts to return deterministic Posts, and verify drafts land
 in the queue's pending/ folder with generated_by=trends.
 """
 from __future__ import annotations
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest

@@ -47,11 +47,6 @@ def _diff_summary(a: str, b: str) -> tuple[int, float]:
         return 0, 0.0
     matcher = difflib.SequenceMatcher(None, a, b)
     ratio = 1.0 - matcher.ratio()
-    # Approximate chars changed: insertions + deletions
-    changed = sum(
-        max(t.size, t.size) for t in matcher.get_matching_blocks() if t.size == 0
-    ) or len(a) - matcher.get_matching_blocks()[0].size
-    # Simpler: sum of edit operations in the opcodes
     chars = 0
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag != "equal":

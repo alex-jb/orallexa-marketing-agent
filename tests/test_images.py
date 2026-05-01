@@ -2,7 +2,6 @@
 from __future__ import annotations
 import urllib.parse
 
-import pytest
 
 from marketing_agent.content.images import (
     _PLATFORM_DIMS, _template_image_prompt, generate_image,

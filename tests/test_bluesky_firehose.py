@@ -8,7 +8,6 @@ from __future__ import annotations
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from marketing_agent.listeners.bluesky_firehose import (
     _classify_record, _is_atproto_available, listen, resolve_handle_to_did,

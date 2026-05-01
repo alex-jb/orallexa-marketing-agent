@@ -7,9 +7,8 @@ The shim must:
   3. Always expose `DEFAULT_HAIKU_MODEL` / `DEFAULT_SONNET_MODEL` constants
 """
 from __future__ import annotations
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 
 def test_constants_always_available():
@@ -63,7 +62,6 @@ def test_messages_create_signature_returns_tuple():
     from marketing_agent.llm.anthropic_compat import AnthropicClient
     assert hasattr(AnthropicClient, "messages_create")
     # And critically, it's callable
-    import inspect
     method = getattr(AnthropicClient, "messages_create")
     assert callable(method)
 

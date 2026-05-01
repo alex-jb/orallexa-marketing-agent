@@ -1,8 +1,6 @@
 """Tests for strategy / launch plan generator."""
 from __future__ import annotations
-import os
 
-import pytest
 
 from marketing_agent import Project
 from marketing_agent.strategy import default_plan, LaunchPlan, llm_plan, write_plan

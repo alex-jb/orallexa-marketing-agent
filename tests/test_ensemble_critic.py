@@ -8,9 +8,8 @@ without touching real APIs. Also verify graceful degradation when:
 """
 from __future__ import annotations
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from marketing_agent.ensemble_critic import (
     _configured_providers, ensemble_score,

@@ -10,7 +10,6 @@ adapter:
 from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from marketing_agent.types import Platform, Post
 

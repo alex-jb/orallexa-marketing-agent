@@ -1,8 +1,6 @@
 """Content generation entry point. Tries Claude when keyed, falls back to templates."""
 from __future__ import annotations
-import json
 import os
-import re
 from typing import Optional
 
 from marketing_agent.types import GenerationMode, Platform, Post, Project
