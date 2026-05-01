@@ -223,6 +223,16 @@ pip install "orallexa-marketing-agent[agent_sdk]"    # Anthropic Agent SDK 0.1.6
 
 ---
 
+## 未来 / 付费方案 —— *推测中*
+
+把 `marketing-agent` 包装成跑在 [VibeXForge](https://vibexforge.com) 里的 **托管 SaaS**,架构已经全设计好了但**还没动一行代码**。详细架构、定价、以及触发 Phase-1 实作的「需求信号阈值」见 [`docs/future/saas-design.md`](docs/future/saas-design.md)。
+
+承诺没变:这里的 OSS 工具就是产品本身,而且永远免费。SaaS 设计文档放在那里只是为了让感兴趣的创业者 / 投资人 / 合作者能直接看明白增长故事,不需要我再讲一遍。
+
+MCP server 上架(Anthropic marketplace + `modelcontextprotocol/servers` 注册表)等 PH 2026-05-04 之后再发 —— 包装套件见 [`docs/mcp-listing/`](docs/mcp-listing/)。
+
+---
+
 ## 协议
 
 MIT —— 用它，fork 它，发出去。

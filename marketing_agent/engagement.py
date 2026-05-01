@@ -51,19 +51,30 @@ class EngagementTracker:
             )
 
     def fetch_x_metrics(self, post_id: str) -> list[Engagement]:
-        """Pull current metrics from X API for a single tweet."""
+        """Pull current metrics from X API for a single tweet.
+
+        Auth strategy: prefer the X_BEARER_TOKEN (app-only) for reads —
+        many free-tier X apps have read-only Bearer access even when the
+        OAuth1 user-context flow returns 401 on /tweets/:id. Falls back
+        to OAuth1 (consumer + access tokens) when no Bearer is set.
+        """
         import os
-        if not all(os.getenv(k) for k in
-                    ["X_API_KEY", "X_API_KEY_SECRET",
-                     "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]):
+        bearer = os.getenv("X_BEARER_TOKEN")
+        oauth1_keys = ["X_API_KEY", "X_API_KEY_SECRET",
+                          "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]
+        has_oauth1 = all(os.getenv(k) for k in oauth1_keys)
+        if not bearer and not has_oauth1:
             return []
         import tweepy
-        client = tweepy.Client(
-            consumer_key=os.getenv("X_API_KEY"),
-            consumer_secret=os.getenv("X_API_KEY_SECRET"),
-            access_token=os.getenv("X_ACCESS_TOKEN"),
-            access_token_secret=os.getenv("X_ACCESS_TOKEN_SECRET"),
-        )
+        if bearer:
+            client = tweepy.Client(bearer_token=bearer)
+        else:
+            client = tweepy.Client(
+                consumer_key=os.getenv("X_API_KEY"),
+                consumer_secret=os.getenv("X_API_KEY_SECRET"),
+                access_token=os.getenv("X_ACCESS_TOKEN"),
+                access_token_secret=os.getenv("X_ACCESS_TOKEN_SECRET"),
+            )
         tweet = client.get_tweet(post_id, tweet_fields=["public_metrics"])
         if not tweet.data:
             return []

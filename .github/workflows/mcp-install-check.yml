@@ -1,0 +1,81 @@
+name: MCP install verification
+
+# Pre-marketplace-submission gate: install the published package on a
+# fresh ubuntu + macos runner, verify the `marketing-agent-mcp` console
+# script is on PATH, run it briefly to confirm it starts. Catches the
+# "works on my machine, broken in fresh venv" failure that would leave
+# a real install-attempting user stuck.
+
+on:
+  schedule:
+    - cron: "13 6 * * 1"   # 06:13 UTC every Monday — pre-week sanity
+  push:
+    branches: [main]
+    paths:
+      - "marketing_agent/mcp_server.py"
+      - "pyproject.toml"
+      - ".github/workflows/mcp-install-check.yml"
+  workflow_dispatch:
+
+jobs:
+  fresh-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Build sdist + wheel from source
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist --wheel
+          ls -la dist/
+
+      - name: Install the wheel into a fresh venv with [mcp] extra
+        run: |
+          python -m venv /tmp/freshvenv
+          source /tmp/freshvenv/bin/activate
+          pip install --upgrade pip
+          # Install from the just-built wheel — exactly what a real user gets
+          pip install "$(ls dist/*.whl)[mcp]"
+
+      - name: Verify console script is on PATH
+        run: |
+          source /tmp/freshvenv/bin/activate
+          which marketing-agent-mcp
+          which marketing-agent
+
+      - name: Verify MCP server starts (10s smoke)
+        run: |
+          source /tmp/freshvenv/bin/activate
+          # MCP servers speak stdio; we just want to confirm it imports
+          # and binds. Send empty input + 10s timeout — exit code from
+          # SIGTERM is fine, we only care it didn't crash on startup.
+          timeout 10 marketing-agent-mcp < /dev/null > /tmp/mcp.out 2>&1 || true
+          # Should NOT contain ImportError / ModuleNotFoundError
+          if grep -E "ImportError|ModuleNotFoundError|AttributeError" /tmp/mcp.out; then
+            echo "❌ MCP server crashed on startup"
+            cat /tmp/mcp.out
+            exit 1
+          fi
+          echo "✅ MCP server starts cleanly"
+
+      - name: Verify all 7 tools are importable
+        run: |
+          source /tmp/freshvenv/bin/activate
+          python -c "
+          from marketing_agent.mcp_server import (
+              tool_draft_posts, tool_submit_to_queue, tool_list_queue,
+              tool_engagement_top, tool_optimal_time, tool_bandit_stats,
+              tool_launch_plan,
+          )
+          print('✅ all 7 tools importable')
+          "

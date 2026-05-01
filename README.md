@@ -228,6 +228,16 @@ Override with `--force` (testing only).
 
 ---
 
+## Future / paid offering — *speculative*
+
+A managed-SaaS layer on top of `marketing-agent` (running inside [VibeXForge](https://vibexforge.com)) is fully designed but **not yet built**. See [`docs/future/saas-design.md`](docs/future/saas-design.md) for the architecture, pricing, and the explicit demand-signal threshold that would trigger Phase-1 work.
+
+Today's promise stays the same: the OSS tool here is the whole product, and it always will be free. The SaaS doc exists so an interested founder / investor / collaborator can understand the scaling story without me having to retell it.
+
+The MCP-server side of distribution (Anthropic marketplace + `modelcontextprotocol/servers` registry) is shipping post-PH 2026-05-04 — see [`docs/mcp-listing/`](docs/mcp-listing/) for the kit.
+
+---
+
 ## License
 
 MIT — use it, fork it, ship it.
