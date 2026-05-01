@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+from marketing_agent.logging import get_logger
 from marketing_agent.types import GenerationMode, Platform, Post, Project
 from marketing_agent.content import templates
+
+log = get_logger(__name__)
 
 
 def generate_posts(
@@ -37,9 +40,16 @@ def generate_posts(
 
         try:
             out.append(_generate_with_llm(project, p, subreddit=subreddit))
-        except Exception:
+        except Exception as e:
             if mode == GenerationMode.LLM:
                 raise  # caller asked for LLM-only; don't silently downgrade
+            # HYBRID mode: fall back to template, but log loudly — silent
+            # fallback hides bad keys / rate limits / network for weeks.
+            log.warning(
+                "LLM generation failed for %s, falling back to template: "
+                "%s: %s",
+                p.value, type(e).__name__, e,
+            )
             if n_variants > 1:
                 variants = templates.render_variants(p, project, n=n_variants,
                                                        subreddit=subreddit)
