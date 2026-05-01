@@ -28,7 +28,7 @@ import marketing_agent.trends_to_drafts as ttd_module  # noqa: E402
 from daily_post import _run_trends_for_projects  # noqa: E402
 
 
-def _stub_generate(synth_project, platforms, mode=None, subreddit=None):
+def _stub_generate(synth_project, platforms, mode=None, subreddit=None, **kwargs):
     return [
         Post(platform=p, body=f"d({p.value})").with_count()
         for p in platforms
@@ -83,7 +83,7 @@ def test_run_trends_for_projects_returns_zero_when_no_items(queue):
 def test_run_trends_for_projects_passes_subreddit_target(queue):
     captured = {}
 
-    def capture(synth_project, platforms, mode=None, subreddit=None):
+    def capture(synth_project, platforms, mode=None, subreddit=None, **kwargs):
         captured.setdefault(synth_project.name, []).append(subreddit)
         return _stub_generate(synth_project, platforms, mode=mode,
                                   subreddit=subreddit)

@@ -102,6 +102,7 @@ def trends_to_drafts(
     subreddit_target: Optional[str] = None,
     dedup_days: int = 7,
     memory: Optional[TrendMemory] = None,
+    n_variants: int = 1,
 ) -> list[DraftResult]:
     """Aggregate trends → top N → generate drafts → submit to queue.
 
@@ -164,6 +165,7 @@ def trends_to_drafts(
         try:
             posts = generate_posts(
                 synth, platforms, mode=mode, subreddit=subreddit_target,
+                n_variants=n_variants,
             )
         except Exception as e:
             log.warning(

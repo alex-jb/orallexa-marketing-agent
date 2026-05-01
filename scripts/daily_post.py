@@ -189,7 +189,8 @@ def _preset_from_config(cfg) -> dict:
     }
 
 
-def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
+def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str,
+                                  n_variants: int = 1) -> int:
     """For each enabled project, run trends_to_drafts using the shared
     TrendsConfig. Returns total drafts queued across all projects.
 
@@ -256,6 +257,7 @@ def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
         results = trends_to_drafts(
             project=project, platforms=plats, items=items,
             top_n=tcfg.top_n, mode=mode, subreddit_target=cfg.subreddit,
+            n_variants=n_variants,
         )
         n = sum(len(r.queued_paths) for r in results)
         total += n
@@ -370,6 +372,7 @@ def main() -> int:
             if tcfg.enabled:
                 trends_count = _run_trends_for_projects(
                     cfgs, tcfg, mode_str=args.mode,
+                    n_variants=args.variants,
                 )
             else:
                 print("ℹ️  --trends-too set, but trends.enabled=false in "

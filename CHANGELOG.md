@@ -2,6 +2,28 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.3] — 2026-05-01
+
+**Trends path now also tags variant_key — closes the second half of the bandit blind spot.**
+
+v0.18.2 fixed `_generate_with_llm` to set `variant_key` when `n_variants > 1`. Production verification revealed only the **commit-driven** path (`gen=hybrid`) was getting tagged — the **trends-driven** path (`gen=trends`, 9 of 11 daily drafts) was still emitting `variant_key=(none)` because `trends_to_drafts.trends_to_drafts()` never plumbed `n_variants` through to its internal `generate_posts()` call.
+
+### Fix
+- `marketing_agent.trends_to_drafts.trends_to_drafts(..., n_variants=1)` — new kwarg, defaults to 1 (backward-compat).
+- `scripts/daily_post.py._run_trends_for_projects(..., n_variants=1)` — propagates `args.variants` through.
+- `scripts/daily_post.py main()` — passes `n_variants=args.variants` to `_run_trends_for_projects`. `daily.yml` workflow already passes `--variants 3`, so no workflow change needed.
+- 5 test stubs in `test_trends_to_drafts.py` and `test_daily_post_trends.py` updated to accept `**kwargs` (forward-compat for any future generator kwargs).
+
+### Production behavior
+Next daily.yml run (or manual `gh workflow run daily.yml`):
+- 2 commit-driven drafts: variant_key set ✅ (already worked in v0.18.2)
+- 9 trends-driven drafts: variant_key set ✅ (this release)
+
+= 11 drafts/day feeding the bandit instead of 2. Exploration converges in days, not months.
+
+### Tests
+- 400 → **400 tests** (+0; signature change kept all assertions valid; no new behavior to test that wasn't already covered by `test_generator_variants.py`)
+
 ## [0.18.2] — 2026-05-01
 
 **LLM-mode variant_key — bandit finally sees production data.**

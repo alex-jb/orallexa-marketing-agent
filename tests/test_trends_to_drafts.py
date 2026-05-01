@@ -84,7 +84,7 @@ def test_project_with_trend_includes_url_when_present(project, trend_items):
 # ───────────────── trends_to_drafts ─────────────────
 
 
-def _stub_generate(synth_project, platforms, mode=None, subreddit=None):
+def _stub_generate(synth_project, platforms, mode=None, subreddit=None, **kwargs):
     # Return one Post per platform; body references the trend so we can
     # assert later that synth_project carried the hook through.
     hook_line = synth_project.recent_changes[0] if synth_project.recent_changes else ""
@@ -172,7 +172,7 @@ def test_trends_to_drafts_per_trend_failure_does_not_crash(queue, project, trend
     """If generator raises for one trend, others still succeed."""
     call_count = {"n": 0}
 
-    def flaky(synth_project, platforms, mode=None, subreddit=None):
+    def flaky(synth_project, platforms, mode=None, subreddit=None, **kwargs):
         call_count["n"] += 1
         if call_count["n"] == 2:
             raise RuntimeError("boom")
@@ -195,7 +195,7 @@ def test_trends_to_drafts_per_trend_failure_does_not_crash(queue, project, trend
 def test_trends_to_drafts_passes_subreddit_target_to_generator(queue, project, trend_items):
     captured = {}
 
-    def capture(synth_project, platforms, mode=None, subreddit=None):
+    def capture(synth_project, platforms, mode=None, subreddit=None, **kwargs):
         captured["subreddit"] = subreddit
         return _stub_generate(synth_project, platforms, mode=mode,
                                   subreddit=subreddit)
