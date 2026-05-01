@@ -11,3 +11,5 @@ char_count: 244
 v0.18.0: agent now self-sources from VibeX top-of-feed (Supabase, $0 API). Daily cron drafts about your users' Breakout/Legend/Myth projects.
 
 https://github.com/alex-jb/orallexa-marketing-agent
+
+<!-- posted_id: https://x.com/i/web/status/2050113492829815089 -->
