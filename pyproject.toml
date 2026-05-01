@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orallexa-marketing-agent"
-version = "0.18.0"
+version = "0.18.1"
 description = "AI marketing agent for OSS founders — auto-generate and distribute project content across X, Reddit, LinkedIn, and more."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,7 +47,7 @@ dspy = ["dspy-ai>=2.5"]
 ui = ["streamlit>=1.40"]
 ensemble = ["litellm>=1.55"]
 firehose = ["atproto>=0.0.55"]
-shared = ["solo-founder-os>=0.1.0"]
+shared = ["solo-founder-os>=0.13.0"]
 
 [project.scripts]
 marketing-agent = "marketing_agent.cli:main"

@@ -2,6 +2,32 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.1] — 2026-05-01
+
+**Cross-agent SFOS interop pass — marketing-agent stops being a silo.**
+
+The 3 patterns that marketing-agent invented (Reflexion, Voyager skill promotion, ICPL preference learning) are now visible to the other 7 agents in the stack via solo-founder-os v0.13's shared protocols. Plus two patterns that LIVED only here (bandit + autopsy) were promoted into solo-founder-os core for the rest of the stack to use.
+
+### Added — sinks/mirrors to SFOS-readable formats
+- `marketing_agent.reflexion_memory.ReflexionMemory.record()` now also writes a JSONL row to `~/.orallexa-marketing-agent/reflections.jsonl` in the schema `solo_founder_os.evolver` reads (ts/agent/task/outcome/verbatim_signal). Outcome is mapped from critic score: `<4 = FAILED`, `4-7 = PARTIAL`, `≥7 = SUCCESS`. Override path with `MARKETING_AGENT_REFLECTIONS_JSONL`. New `export_jsonl(since_iso=…)` helper for one-shot backfill of pre-sink data.
+- `marketing_agent.skill_promoter.promote()` now mirrors every promoted skill to `~/.solo-founder-os/skills/<slug>.md` (in addition to the repo-local `skills/learned/` path). SFOS' `list_skills()` now finds them. Disable in tests with `sfos_mirror=False`; override path with `SFOS_SKILLS_DIR`.
+- `marketing_agent.preference.PreferenceStore.record()` now mirrors each (original, edited) pair into `~/.orallexa-marketing-agent/preference-pairs.jsonl` in the schema `solo_founder_os.preference` reads (ts/task/original/edited/context/note). Override path with `MARKETING_AGENT_PREFERENCE_JSONL`. SFOS' `preference_preamble()` now picks up marketing-agent's preference signal.
+
+### Promoted to solo-founder-os v0.13 (separate repo)
+- `solo_founder_os.bandit.Bandit` — Thompson-sampling Beta-conjugate variant chooser, generalized from marketing's `VariantBandit` to `(agent, channel, variant_key)` namespace. Other agents (`vc-outreach`, `bilingual`, `customer-discovery`) can now A/B their own templates without re-implementing the math. Marketing-agent's existing `VariantBandit` keeps its own SQLite for backward-compat.
+- `solo_founder_os.autopsy` — same engagement-vs-peers / critic / best-time / length-vs-norm engine as `marketing_agent.autopsy`, but plug-in-ready via three Protocols (`MetricSource`, `CriticHook`, `BestTimeHook`). Funnel-analytics can now plug in "shares-per-brief", vc-outreach can plug in "reply rate vs sent", etc. Marketing's local `autopsy.py` keeps its SQLite-backed implementation.
+
+### Changed
+- `[shared]` extra: `solo-founder-os>=0.1.0` → `>=0.13.0` (the version that adds bandit + autopsy + preference). Still opt-in, not a hard dep.
+
+### Tests
+- `tests/conftest.py`: autouse fixture extended with `MARKETING_AGENT_REFLECTIONS_JSONL`, `MARKETING_AGENT_PREFERENCE_JSONL`, `SFOS_SKILLS_DIR`, `SFOS_BANDIT_DB` redirects so test runs never touch the user's real `~/.orallexa-marketing-agent/` or `~/.solo-founder-os/` dirs.
+- 371 → **384 tests** (+13: 6 reflexion JSONL, 4 preference JSONL, 3 skill-mirror)
+- Coverage steady at 77%
+
+### Why this matters
+Before this release: marketing-agent was the most active reflexion/skill/preference producer in the stack but its data was invisible to the other 7 agents (lived in agent-private SQLite). After: every reflection / skill promotion / preference edit is mirrored to the SFOS-shared paths the other agents already scan. The cross-agent learning that solo-founder-os was designed for actually starts working.
+
 ## [0.18.0] — 2026-04-30
 
 **VibeX top-of-feed → TrendItem source: the agent now self-sources from your own platform.**
