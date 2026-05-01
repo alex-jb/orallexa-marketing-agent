@@ -2,8 +2,8 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.17.1-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-331%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.17.2-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-365%20passing-brightgreen.svg)](#)
 [![Coverage](https://img.shields.io/badge/coverage-77%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)

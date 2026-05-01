@@ -38,6 +38,7 @@ from typing import Optional
 from marketing_agent.content.generator import generate_posts
 from marketing_agent.logging import get_logger
 from marketing_agent.queue import ApprovalQueue
+from marketing_agent.trend_memory import TrendMemory
 from marketing_agent.trends import TrendItem, aggregate
 from marketing_agent.types import GenerationMode, Platform, Project
 
@@ -99,6 +100,8 @@ def trends_to_drafts(
     gate: bool = True,
     items: Optional[list[TrendItem]] = None,
     subreddit_target: Optional[str] = None,
+    dedup_days: int = 7,
+    memory: Optional[TrendMemory] = None,
 ) -> list[DraftResult]:
     """Aggregate trends → top N → generate drafts → submit to queue.
 
@@ -109,14 +112,24 @@ def trends_to_drafts(
         hn_query:          see `trends.aggregate()`.
         subreddits:        see `trends.aggregate()`.
         hours:             lookback window in hours for trend aggregation.
-        top_n:             how many top trends to convert into drafts.
+        top_n:             how many fresh top trends to convert into drafts.
         mode:              GenerationMode.HYBRID (default) | LLM | TEMPLATE.
         queue:             override ApprovalQueue for testing.
         gate:              run critic + dedup gate on each draft (default on).
         items:             pre-aggregated TrendItems; skips network fetch.
         subreddit_target:  Reddit subreddit slug (passed through to generator).
+        dedup_days:        skip trends whose URL was already drafted for THIS
+                              project within this many days (default 7). Set to 0
+                              to disable trend-URL memory entirely.
+        memory:            override TrendMemory for testing.
 
-    Returns one DraftResult per processed trend.
+    Trend-URL dedup: each successful (trend, any platform) draft marks
+    the trend URL as "drafted for this project today". The next time
+    aggregate() returns the same trend (very common with hot HN stories),
+    it is filtered before generation and never burns LLM tokens.
+
+    Returns one DraftResult per processed trend (only fresh ones — stale
+    trends are dropped before generation, not returned).
     """
     if items is None:
         items = aggregate(
@@ -128,6 +141,19 @@ def trends_to_drafts(
     if not items:
         log.info("trends_to_drafts: no trending items; nothing to draft")
         return []
+
+    mem = memory if memory is not None else (
+        TrendMemory() if dedup_days > 0 else None
+    )
+    if mem is not None:
+        before = len(items)
+        items = mem.filter_fresh(items, project.name, days=dedup_days)
+        skipped = before - len(items)
+        if skipped:
+            log.info(
+                "trends_to_drafts: skipped %d stale trend(s) already drafted "
+                "for %r within last %d days", skipped, project.name, dedup_days,
+            )
 
     top = items[:top_n]
     q = queue or ApprovalQueue()
@@ -163,6 +189,11 @@ def trends_to_drafts(
                     "(trend=%r, platform=%s): %s",
                     trend.title, post.platform.value, e,
                 )
+        # Mark the trend URL as drafted for this project — even if some
+        # platforms failed, others succeeded and one draft is enough to
+        # cool this trend down for the dedup window.
+        if mem is not None and result.queued_paths and trend.url:
+            mem.mark_drafted(trend.url, project.name)
         out.append(result)
 
     return out

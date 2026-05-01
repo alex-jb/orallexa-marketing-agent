@@ -2,6 +2,38 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.17.2] — 2026-04-30
+
+**Three foot-guns the proactive loop kept stepping on, fixed in one release.**
+
+### Added — A. Trend-URL dedup memory (`marketing_agent.trend_memory`)
+The post-content semantic-dedup gate inside `ApprovalQueue.submit` only catches near-duplicate WRITING. It cannot see that the same hot HN story (or top GitHub repo of the week) is being drafted about for the 4th day in a row. v0.17.2 closes this hole.
+
+- New `TrendMemory` class — SQLite table `drafted_trends (url, project_name, drafted_at)`, stored alongside the existing post-history DB. Key methods: `was_drafted_recently(url, project, days=7)`, `filter_fresh(items, project)`, `mark_drafted()`, `purge_older_than(days=90)`.
+- `trends_to_drafts()` now takes `dedup_days` (default 7) and `memory` overrides. Stale trends are filtered BEFORE the LLM is called — zero token cost on a re-seen URL.
+- After at least one platform's draft makes it into `pending/`, the trend URL is marked. If every platform's generation fails for that trend, the URL stays *unmarked* so retry tomorrow is still possible.
+- 11 new tests covering core memory + filter + mark-on-success-only behavior.
+
+### Added — C. Soft daily LLM-spend cap (`marketing_agent.budget`)
+`top_n=3 × 3 projects × M platforms` is fine. `top_n=20 × 3 projects × 8 platforms` is not. Without a guard, a misconfigured run would happily burn through budget with no notice.
+
+- New `budget.daily_spend_usd()` — reads `~/.marketing-agent/usage.jsonl` (the cross-provider log written by every Anthropic / Cloudflare-edge / LiteLLM call), prices each row using `cost.PRICES`, sums today (UTC) only. Robust to corrupt lines and missing files (returns 0.0, never raises).
+- `is_over_budget()` + `configured_cap_usd()` — opt-in via env var `MARKETING_AGENT_DAILY_BUDGET_USD`. Unset → unlimited (no behavior change for current users).
+- `_run_trends_for_projects` checks the cap before the proactive pass starts AND between projects mid-loop, so any partial work already queued is preserved.
+- Conservative pricing: unknown models priced as Sonnet (over-estimate spend = under-shoot the cap = safer).
+- 15 new tests.
+
+### Changed — B. Daily issue body breakdown
+The GitHub issue created at end of cron used to say only "📥 N drafts ready". Now it splits commit-driven vs trend-anchored counts and inlines the trend titles per project so review can be triaged at a glance.
+
+- `daily_post.py` now emits `commit_count` and `trends_count` as separate `GITHUB_OUTPUT` rows (the existing `queued_count` is preserved for back-compat).
+- New helper `_write_trends_summary()` writes `queue/_today_trends_summary.md` with a per-project bulleted list of (source, title, URL) — committed with the rest of `queue/` and inlined into the issue body via the workflow.
+- `daily.yml` issue body template updated to show the breakdown + `cat` the summary file.
+
+### Tests / hygiene
+- New `tests/conftest.py` autouse fixture — every test now writes to a per-test tmp dir for `MARKETING_AGENT_DB_PATH`, `MARKETING_AGENT_QUEUE`, and `cost.USAGE_LOG_PATH`. Fixes a latent leak where `TrendMemory` and `PostMemory` defaults could touch the developer's real `~/.marketing_agent/`.
+- 331 → **365 tests** (+34: 11 trend_memory + 15 budget + 4 trends_to_drafts dedup + 1 budget integration + 2 issue body summary + minor)
+
 ## [0.17.1] — 2026-04-30
 
 **Wire trends → drafts into the daily cron — proactive loop is now end-to-end on autopilot.**

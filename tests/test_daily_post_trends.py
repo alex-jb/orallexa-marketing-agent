@@ -117,3 +117,58 @@ def test_run_trends_for_projects_aggregates_once(queue):
         _run_trends_for_projects(cfgs, tcfg, mode_str="template")
 
     assert mock_agg.call_count == 1
+
+
+def test_run_trends_for_projects_skips_when_over_budget(queue, tmp_path,
+                                                              monkeypatch):
+    """When MARKETING_AGENT_DAILY_BUDGET_USD is set and today's spend
+    already meets it, the entire proactive pass is skipped (no aggregate, no projects)."""
+    import json
+    from datetime import datetime, timezone
+    log = tmp_path / "usage.jsonl"
+    today_iso = datetime.now(timezone.utc).isoformat()
+    log.write_text(json.dumps({
+        "ts": today_iso, "model": "claude-sonnet-4-6",
+        "input_tokens": 0, "output_tokens": 1_000_000,
+    }) + "\n")
+
+    import marketing_agent.cost as cost_mod
+    monkeypatch.setattr(cost_mod, "USAGE_LOG_PATH", log)
+    monkeypatch.setenv("MARKETING_AGENT_DAILY_BUDGET_USD", "10.0")
+
+    cfgs = [ProjectConfig(name="A", repo="x/y", tagline="t",
+                            platforms=["x"])]
+    tcfg = TrendsConfig(enabled=True, top_n=1, hours=24)
+
+    with patch("marketing_agent.trends.aggregate") as mock_agg, \
+         patch.object(ttd_module, "generate_posts",
+                          side_effect=_stub_generate):
+        total = _run_trends_for_projects(cfgs, tcfg, mode_str="template")
+
+    assert total == 0
+    mock_agg.assert_not_called()
+
+
+def test_write_trends_summary_creates_file(tmp_path, monkeypatch):
+    """_write_trends_summary writes a markdown file under the queue dir."""
+    from daily_post import _write_trends_summary
+    monkeypatch.setenv("MARKETING_AGENT_QUEUE", str(tmp_path / "q"))
+    rows = [
+        ("Alpha", "hn", "Hot story 1", "https://news.ycombinator.com/1"),
+        ("Alpha", "github", "acme/repo", "https://github.com/acme/repo"),
+        ("Beta", "hn", "Hot story 2", "https://news.ycombinator.com/2"),
+    ]
+    _write_trends_summary(rows)
+    out = (tmp_path / "q" / "_today_trends_summary.md").read_text()
+    assert "**Alpha**" in out
+    assert "**Beta**" in out
+    assert "Hot story 1" in out
+    assert "[github]" in out
+
+
+def test_write_trends_summary_empty_writes_stub(tmp_path, monkeypatch):
+    from daily_post import _write_trends_summary
+    monkeypatch.setenv("MARKETING_AGENT_QUEUE", str(tmp_path / "q"))
+    _write_trends_summary([])
+    out = (tmp_path / "q" / "_today_trends_summary.md").read_text()
+    assert "no trend-anchored drafts today" in out

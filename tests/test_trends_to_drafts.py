@@ -215,3 +215,82 @@ def test_draft_result_dataclass_default_paths_is_empty():
     item = TrendItem(source="hn", title="x", url="u", score=1)
     r = DraftResult(trend=item)
     assert r.queued_paths == []
+
+
+# ───────────────── trend-URL dedup memory ─────────────────
+
+
+def test_trends_to_drafts_skips_recently_drafted_trend(queue, project, trend_items, tmp_path):
+    """Trend whose URL was already drafted is filtered out before generation."""
+    from marketing_agent.trend_memory import TrendMemory
+    mem = TrendMemory(db_path=tmp_path / "trend.db")
+    mem.mark_drafted(trend_items[1].url, project.name)
+
+    with patch.object(ttd_module, "generate_posts",
+                          side_effect=_stub_generate):
+        results = trends_to_drafts(
+            project=project, platforms=[Platform.X],
+            items=trend_items, top_n=3,
+            mode=GenerationMode.TEMPLATE, queue=queue, gate=False,
+            memory=mem, dedup_days=7,
+        )
+    assert len(results) == 2
+    titles = [r.trend.title for r in results]
+    assert trend_items[1].title not in titles
+
+
+def test_trends_to_drafts_marks_drafted_after_success(queue, project, trend_items, tmp_path):
+    from marketing_agent.trend_memory import TrendMemory
+    mem = TrendMemory(db_path=tmp_path / "trend.db")
+
+    with patch.object(ttd_module, "generate_posts",
+                          side_effect=_stub_generate):
+        first = trends_to_drafts(
+            project=project, platforms=[Platform.X],
+            items=trend_items, top_n=3,
+            mode=GenerationMode.TEMPLATE, queue=queue, gate=False,
+            memory=mem,
+        )
+        assert len(first) == 3
+        # Second run with same items → all dedup-filtered.
+        second = trends_to_drafts(
+            project=project, platforms=[Platform.X],
+            items=trend_items, top_n=3,
+            mode=GenerationMode.TEMPLATE, queue=queue, gate=False,
+            memory=mem,
+        )
+    assert len(second) == 0
+
+
+def test_trends_to_drafts_dedup_days_zero_disables_memory(queue, project, trend_items, tmp_path):
+    from marketing_agent.trend_memory import TrendMemory
+    mem = TrendMemory(db_path=tmp_path / "trend.db")
+    mem.mark_drafted(trend_items[1].url, project.name)
+
+    with patch.object(ttd_module, "generate_posts",
+                          side_effect=_stub_generate):
+        results = trends_to_drafts(
+            project=project, platforms=[Platform.X],
+            items=trend_items, top_n=3,
+            mode=GenerationMode.TEMPLATE, queue=queue, gate=False,
+            dedup_days=0,
+        )
+    assert len(results) == 3
+
+
+def test_trends_to_drafts_does_not_mark_when_all_platforms_failed(queue, project, trend_items, tmp_path):
+    from marketing_agent.trend_memory import TrendMemory
+    mem = TrendMemory(db_path=tmp_path / "trend.db")
+
+    def always_fail(*a, **kw):
+        raise RuntimeError("boom")
+
+    with patch.object(ttd_module, "generate_posts", side_effect=always_fail):
+        trends_to_drafts(
+            project=project, platforms=[Platform.X],
+            items=trend_items[:1], top_n=1,
+            mode=GenerationMode.TEMPLATE, queue=queue, gate=False,
+            memory=mem,
+        )
+    assert mem.was_drafted_recently(
+        trend_items[0].url, project.name) is False

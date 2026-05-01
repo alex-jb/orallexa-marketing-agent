@@ -195,9 +195,26 @@ def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
     Trends are aggregated ONCE (HTTP fetches cost), then reused across
     every project — each project gets its own per-trend angle via the
     synthetic-Project rewrite inside trends_to_drafts.
+
+    Honors `MARKETING_AGENT_DAILY_BUDGET_USD` — when today's LLM spend
+    has already met-or-exceeded the cap, the proactive pass is skipped
+    entirely. Per-project budget checks also fire between iterations
+    so a single project's first batch can still ship even if subsequent
+    projects would tip over.
     """
+    from marketing_agent.budget import (
+        configured_cap_usd, daily_spend_usd, is_over_budget,
+    )
     from marketing_agent.trends import aggregate
     from marketing_agent.trends_to_drafts import trends_to_drafts
+
+    cap = configured_cap_usd()
+    if cap is not None and is_over_budget(cap_usd=cap):
+        spent = daily_spend_usd()
+        print(f"⚠️  daily LLM budget reached "
+               f"(${spent:.4f} >= ${cap:.4f}); skipping trends pass.")
+        _write_trends_summary([])
+        return 0
 
     print("\n━━━ proactive pass: trends → drafts ━━━")
     print(f"   languages={tcfg.languages or '(all)'}  "
@@ -221,7 +238,13 @@ def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
             "hybrid": GenerationMode.HYBRID}[mode_str]
 
     total = 0
+    drafted_summary: list[tuple[str, str, str, str]] = []  # (project, source, title, url)
     for cfg in cfgs:
+        if cap is not None and is_over_budget(cap_usd=cap):
+            spent = daily_spend_usd()
+            print(f"⚠️  budget hit mid-loop (${spent:.4f} >= ${cap:.4f}); "
+                   f"stopping after queued={total}, remaining projects skipped.")
+            break
         project = Project(
             name=cfg.name, tagline=cfg.tagline,
             description=cfg.description,
@@ -235,10 +258,48 @@ def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
         )
         n = sum(len(r.queued_paths) for r in results)
         total += n
+        for r in results:
+            if r.queued_paths:
+                drafted_summary.append(
+                    (cfg.name, r.trend.source, r.trend.title[:120], r.trend.url)
+                )
         print(f"  · {cfg.name}: {n} draft(s) from "
               f"{len(results)} trend(s)")
     print(f"📥 trends pass total: {total} draft(s) queued")
+    _write_trends_summary(drafted_summary)
     return total
+
+
+def _write_trends_summary(rows) -> None:
+    """Persist a per-day trend-draft summary the workflow can include in
+    the daily issue body. Empty list still writes a stub file so the
+    workflow's `cat` is unconditional.
+
+    Format: markdown bullets grouped by project. Lives at
+    `queue/_today_trends_summary.md` (under the queue dir so daily.yml's
+    git-add of queue/ catches it for free).
+    """
+    import os as _os
+    from pathlib import Path as _Path
+    queue_root = _Path(_os.getenv(
+        "MARKETING_AGENT_QUEUE", str(_Path.home() / ".marketing_agent" / "queue"),
+    ))
+    queue_root.mkdir(parents=True, exist_ok=True)
+    summary_path = queue_root / "_today_trends_summary.md"
+
+    if not rows:
+        summary_path.write_text("_(no trend-anchored drafts today)_\n")
+        return
+
+    by_proj: dict[str, list[tuple[str, str, str]]] = {}
+    for project, source, title, url in rows:
+        by_proj.setdefault(project, []).append((source, title, url))
+    lines = ["**Trend-anchored drafts:**"]
+    for proj, items in by_proj.items():
+        lines.append(f"- **{proj}**:")
+        for src, title, url in items:
+            lines.append(f"  - [{src}] [{title}]({url})")
+    summary_path.write_text("\n".join(lines) + "\n")
 
 
 def main() -> int:
@@ -270,7 +331,8 @@ def main() -> int:
     if args.repo and args.config:
         ap.error("--repo and --config are mutually exclusive")
 
-    total_queued = 0
+    commit_count = 0
+    trends_count = 0
 
     if args.config:
         from marketing_agent.multiproject import load_config, load_trends_config
@@ -291,13 +353,13 @@ def main() -> int:
                 dry_run=args.dry_run, to_queue=args.to_queue,
                 force=args.force, mode_str=args.mode,
             )
-            total_queued += queued
+            commit_count += queued
 
         # Proactive pass: run trends_to_drafts per project if enabled.
         if args.trends_too and args.to_queue:
             tcfg = load_trends_config(args.config)
             if tcfg.enabled:
-                total_queued += _run_trends_for_projects(
+                trends_count = _run_trends_for_projects(
                     cfgs, tcfg, mode_str=args.mode,
                 )
             else:
@@ -310,19 +372,23 @@ def main() -> int:
                    file=sys.stderr)
             preset = {"name": args.repo.split("/")[-1], "tagline": "WIP",
                        "description": None, "website": None, "tags": []}
-        total_queued = _run_for_project(
+        commit_count = _run_for_project(
             repo=args.repo, preset=preset, hours=args.hours,
             platforms=args.platforms, subreddit=args.subreddit,
             dry_run=args.dry_run, to_queue=args.to_queue,
             force=args.force, mode_str=args.mode,
         )
 
+    total_queued = commit_count + trends_count
     if args.to_queue:
         gh_out = os.getenv("GITHUB_OUTPUT")
         if gh_out:
             with open(gh_out, "a") as fh:
                 fh.write(f"queued_count={total_queued}\n")
-        print(f"\n✅ Total queued: {total_queued}")
+                fh.write(f"commit_count={commit_count}\n")
+                fh.write(f"trends_count={trends_count}\n")
+        print(f"\n✅ Total queued: {total_queued} "
+               f"(commit-driven: {commit_count}, trend-anchored: {trends_count})")
     return 0
 
 

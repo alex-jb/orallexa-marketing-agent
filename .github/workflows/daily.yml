@@ -98,8 +98,19 @@ jobs:
             --color fbca04 2>/dev/null || true
 
           DATE=$(date -u +%Y-%m-%d)
+          TRENDS_SUMMARY=""
+          if [ -f queue/_today_trends_summary.md ]; then
+            TRENDS_SUMMARY=$(cat queue/_today_trends_summary.md)
+          fi
           BODY=$(cat <<EOF
-          📥 ${{ steps.gen.outputs.queued_count }} draft(s) waiting for review.
+          📥 **${{ steps.gen.outputs.queued_count }} draft(s)** waiting for review.
+
+          - **Commit-driven**: ${{ steps.gen.outputs.commit_count }}
+          - **Trend-anchored**: ${{ steps.gen.outputs.trends_count }}
+
+          ${TRENDS_SUMMARY}
+
+          ---
 
           To approve and publish:
 
