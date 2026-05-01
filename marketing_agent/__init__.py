@@ -29,7 +29,7 @@ from marketing_agent.dspy_signatures import (
 # `import marketing_agent.trends_to_drafts`. Users should import the
 # function directly: `from marketing_agent.trends_to_drafts import trends_to_drafts`.
 
-__version__ = "0.17.2"
+__version__ = "0.18.0"
 __all__ = [
     "Project", "Post", "Platform", "Engagement", "GenerationMode",
     "Orchestrator",

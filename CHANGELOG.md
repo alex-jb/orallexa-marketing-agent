@@ -2,6 +2,26 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.0] — 2026-04-30
+
+**VibeX top-of-feed → TrendItem source: the agent now self-sources from your own platform.**
+
+### Added
+- `marketing_agent.vibex_trends.trending_vibex_projects()` — pulls top recent VibeXForge projects from Supabase (last 24-72h, ranked by evolution stage Myth → Seed) and emits them as `TrendItem` entries with `source="vibex"`. Same shape as GitHub/HN/Reddit trending → lands naturally in the existing `trends_to_drafts` proactive loop.
+- Pure SQL through Supabase Management API. **$0 API cost.** No third-party SDK; stdlib `urllib` only.
+- Auth: `SUPABASE_PERSONAL_ACCESS_TOKEN` + `VIBEX_PROJECT_REF` (or fall back to `SUPABASE_PROJECT_REF` for the common one-project case).
+- 6 new tests covering happy path, missing creds short-circuit, network failure, evolution-stage ordering.
+
+### Why this matters
+The most authentic "what's interesting in AI today" content for *your* audience comes from your own users. A project hitting Breakout/Legend/Myth on VibeXForge in the last 24h is the exact signal worth amplifying. Beats generic GitHub trending for relevance, beats Reddit scraping for signal-to-noise.
+
+### Changed
+- `scripts/trend_perf_report.py` — ruff cleanup (12 empty f-strings).
+
+### Tests
+- 365 → **371 tests** (+6)
+- Coverage steady at 77%
+
 ## [0.17.2] — 2026-04-30
 
 **Three foot-guns the proactive loop kept stepping on, fixed in one release.**
