@@ -6,6 +6,22 @@
 # Schema is intentionally minimal — see marketing_agent/multiproject.py
 # for the parser. Edit, push, and the next cron run picks it up.
 
+# Optional top-level trends block. When enabled (and the cron is invoked
+# with --trends-too, which daily.yml does), the agent ALSO runs
+# trends_to_drafts per project after the commit-driven loop:
+#   1. Aggregate top items across the configured GitHub langs / HN query / subreddits
+#   2. Take top_n by score
+#   3. For each enabled project, fan out per-platform drafts that connect
+#      the project's angle to each trending topic
+# Disabled by default — flip enabled: true to opt in.
+trends:
+  enabled: true
+  languages: [python]
+  hn_query: agent
+  subreddits: [MachineLearning, LocalLLaMA, IndieHackers]
+  top_n: 3
+  hours: 168
+
 projects:
   - name: Orallexa
     repo: alex-jb/orallexa-ai-trading-agent

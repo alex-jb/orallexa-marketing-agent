@@ -188,6 +188,59 @@ def _preset_from_config(cfg) -> dict:
     }
 
 
+def _run_trends_for_projects(cfgs, tcfg, *, mode_str: str) -> int:
+    """For each enabled project, run trends_to_drafts using the shared
+    TrendsConfig. Returns total drafts queued across all projects.
+
+    Trends are aggregated ONCE (HTTP fetches cost), then reused across
+    every project — each project gets its own per-trend angle via the
+    synthetic-Project rewrite inside trends_to_drafts.
+    """
+    from marketing_agent.trends import aggregate
+    from marketing_agent.trends_to_drafts import trends_to_drafts
+
+    print(f"\n━━━ proactive pass: trends → drafts ━━━")
+    print(f"   languages={tcfg.languages or '(all)'}  "
+          f"hn_query={tcfg.hn_query!r}  subreddits={tcfg.subreddits}")
+
+    # Single network fetch shared across all projects.
+    items = aggregate(
+        github_languages=tcfg.languages or None,
+        hn_query=tcfg.hn_query,
+        subreddits=tcfg.subreddits or None,
+        hours=tcfg.hours,
+    )
+    if not items:
+        print("ℹ️  No trending items found in window — skipping.")
+        return 0
+    print(f"📈 {len(items)} unique trending items; "
+          f"feeding top {tcfg.top_n} to each project.")
+
+    mode = {"template": GenerationMode.TEMPLATE,
+            "llm": GenerationMode.LLM,
+            "hybrid": GenerationMode.HYBRID}[mode_str]
+
+    total = 0
+    for cfg in cfgs:
+        project = Project(
+            name=cfg.name, tagline=cfg.tagline,
+            description=cfg.description,
+            github_url=f"https://github.com/{cfg.repo}",
+            website_url=cfg.website, tags=cfg.tags,
+        )
+        plats = [Platform(p) for p in cfg.platforms]
+        results = trends_to_drafts(
+            project=project, platforms=plats, items=items,
+            top_n=tcfg.top_n, mode=mode, subreddit_target=cfg.subreddit,
+        )
+        n = sum(len(r.queued_paths) for r in results)
+        total += n
+        print(f"  · {cfg.name}: {n} draft(s) from "
+              f"{len(results)} trend(s)")
+    print(f"📥 trends pass total: {total} draft(s) queued")
+    return total
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=None,
@@ -205,6 +258,11 @@ def main() -> int:
     ap.add_argument("--to-queue", action="store_true")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--mode", choices=["template", "llm", "hybrid"], default="hybrid")
+    ap.add_argument("--trends-too", action="store_true",
+                    help="After the commit-driven loop, also run "
+                          "trends_to_drafts per project when the config has "
+                          "trends.enabled=true. No-op if config disabled or "
+                          "if --repo (single mode) is used without a config.")
     args = ap.parse_args()
 
     if not args.repo and not args.config:
@@ -215,7 +273,7 @@ def main() -> int:
     total_queued = 0
 
     if args.config:
-        from marketing_agent.multiproject import load_config
+        from marketing_agent.multiproject import load_config, load_trends_config
         cfgs = load_config(args.config)
         if not cfgs:
             print(f"⚠️  No enabled projects found in {args.config}", file=sys.stderr)
@@ -234,6 +292,17 @@ def main() -> int:
                 force=args.force, mode_str=args.mode,
             )
             total_queued += queued
+
+        # Proactive pass: run trends_to_drafts per project if enabled.
+        if args.trends_too and args.to_queue:
+            tcfg = load_trends_config(args.config)
+            if tcfg.enabled:
+                total_queued += _run_trends_for_projects(
+                    cfgs, tcfg, mode_str=args.mode,
+                )
+            else:
+                print("ℹ️  --trends-too set, but trends.enabled=false in "
+                       f"{args.config}; skipping proactive pass.")
     else:
         preset = REPO_PRESETS.get(args.repo)
         if preset is None:

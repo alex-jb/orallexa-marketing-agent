@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from marketing_agent.multiproject import (
-    ProjectConfig, _coerce, _parse_minimal_yaml, load_config,
+    ProjectConfig, TrendsConfig, _coerce, _parse_minimal_yaml, load_config,
+    load_trends_config,
 )
 
 
@@ -101,3 +102,91 @@ projects:
     cfgs = load_config(p)
     assert len(cfgs) == 1
     assert cfgs[0].name == "Valid"
+
+
+# ───────────────── TrendsConfig ─────────────────
+
+
+def test_load_trends_config_default_when_block_absent(tmp_path):
+    p = tmp_path / "no_trends.yml"
+    p.write_text("""
+projects:
+  - name: A
+    repo: x/y
+    tagline: t
+""")
+    tcfg = load_trends_config(p)
+    assert isinstance(tcfg, TrendsConfig)
+    assert tcfg.enabled is False
+    assert tcfg.languages == []
+    assert tcfg.subreddits == []
+    assert tcfg.top_n == 3
+    assert tcfg.hours == 168
+
+
+def test_load_trends_config_returns_disabled_when_file_missing(tmp_path):
+    tcfg = load_trends_config(tmp_path / "does-not-exist.yml")
+    assert tcfg.enabled is False
+
+
+def test_load_trends_config_parses_top_level_block(tmp_path):
+    p = tmp_path / "with_trends.yml"
+    p.write_text("""
+trends:
+  enabled: true
+  languages: [python, rust]
+  hn_query: agent
+  subreddits: [MachineLearning, IndieHackers]
+  top_n: 5
+  hours: 72
+
+projects:
+  - name: A
+    repo: x/y
+    tagline: t
+""")
+    tcfg = load_trends_config(p)
+    assert tcfg.enabled is True
+    assert tcfg.languages == ["python", "rust"]
+    assert tcfg.hn_query == "agent"
+    assert tcfg.subreddits == ["MachineLearning", "IndieHackers"]
+    assert tcfg.top_n == 5
+    assert tcfg.hours == 72
+
+
+def test_load_trends_config_explicit_disabled(tmp_path):
+    p = tmp_path / "disabled.yml"
+    p.write_text("""
+trends:
+  enabled: false
+  languages: [python]
+
+projects:
+  - name: A
+    repo: x/y
+    tagline: t
+""")
+    tcfg = load_trends_config(p)
+    assert tcfg.enabled is False
+    # Other values still parsed.
+    assert tcfg.languages == ["python"]
+
+
+def test_load_config_unaffected_by_trends_block(tmp_path):
+    """Adding trends: block must not break project parsing."""
+    p = tmp_path / "with_trends.yml"
+    p.write_text("""
+trends:
+  enabled: true
+  languages: [python]
+
+projects:
+  - name: A
+    repo: x/y
+    tagline: t
+  - name: B
+    repo: a/b
+    tagline: t2
+""")
+    cfgs = load_config(p)
+    assert [c.name for c in cfgs] == ["A", "B"]

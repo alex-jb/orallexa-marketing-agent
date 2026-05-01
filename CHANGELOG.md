@@ -2,6 +2,34 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.17.1] — 2026-04-30
+
+**Wire trends → drafts into the daily cron — proactive loop is now end-to-end on autopilot.**
+
+### Added
+- New top-level `trends:` block in `marketing-agent.yml` — opt-in (default off). Schema:
+  ```yaml
+  trends:
+    enabled: true
+    languages: [python]
+    hn_query: agent
+    subreddits: [MachineLearning, LocalLLaMA, IndieHackers]
+    top_n: 3
+    hours: 168
+  ```
+- `marketing_agent.multiproject.TrendsConfig` dataclass + `load_trends_config()` parser. The minimal-YAML loader now exposes a shared `_load_raw()` so both project list and trends block read from the same parse pass.
+- New `--trends-too` flag on `scripts/daily_post.py`. When set (and the config has `trends.enabled: true`), after the per-project commit loop it runs a second proactive pass: aggregate trends ONCE, then for each enabled project fan out per-platform drafts that connect the project's angle to each top trend. Per-project granularity is preserved — `subreddit` config carries through to the Reddit adapter.
+- `.github/workflows/daily.yml` now passes `--trends-too` automatically — no further setup needed beyond flipping `trends.enabled: true` in `marketing-agent.yml`.
+- Real default trends config in this repo's `marketing-agent.yml` (enabled=true, langs=python, HN query=agent, 3 subreddits, top_n=3, 1-week window) — the agent is now self-hosting its own proactive loop.
+- 9 new tests: `TrendsConfig` defaults / disabled / explicit-block parsing, project list robust under added trends block, `_run_trends_for_projects` fan-out math, empty-items short-circuit, subreddit_target pass-through, single-aggregate-call invariant for N projects.
+
+### Why this matters
+v0.17.0 added the `trends_to_drafts` plumbing but it was hand-invoked. v0.17.1 wires it into the daily cron, so the morning queue review now contains BOTH commit-driven drafts AND trend-anchored drafts — without anyone having to remember to run the trends command.
+
+### Tests
+- 322 → **331 tests** (+9)
+- Coverage steady at 77%
+
 ## [0.17.0] — 2026-04-30
 
 **Trends → drafts: closing the proactive loop.**

@@ -49,25 +49,31 @@ class ProjectConfig:
     enabled: bool = True
 
 
+@dataclass
+class TrendsConfig:
+    """Top-level `trends:` block in marketing-agent.yml. Optional.
+
+    When enabled, the daily cron also runs `trends_to_drafts` for each
+    enabled project, using these shared filters. Per-project override is
+    intentionally NOT supported yet — most users want one consistent
+    niche filter across all their projects.
+    """
+    enabled: bool = False
+    languages: list[str] = field(default_factory=list)   # GitHub langs
+    hn_query: str = ""
+    subreddits: list[str] = field(default_factory=list)
+    top_n: int = 3
+    hours: int = 168
+
+
 def load_config(path: str | Path = "marketing-agent.yml") -> list[ProjectConfig]:
     """Load and return enabled projects. Returns [] if file missing.
 
     Order: file order. Skipped projects (enabled: false) are filtered out.
     """
-    p = Path(path)
-    if not p.exists():
+    data = _load_raw(path)
+    if data is None:
         return []
-    text = p.read_text(encoding="utf-8")
-
-    if os.getenv("MARKETING_AGENT_USE_PYYAML"):
-        try:
-            import yaml  # type: ignore
-            data = yaml.safe_load(text) or {}
-        except Exception:
-            data = _parse_minimal_yaml(text)
-    else:
-        data = _parse_minimal_yaml(text)
-
     projects = data.get("projects", [])
     out: list[ProjectConfig] = []
     for p in projects:
@@ -85,6 +91,40 @@ def load_config(path: str | Path = "marketing-agent.yml") -> list[ProjectConfig]
         if cfg.enabled and cfg.name and cfg.repo and cfg.tagline:
             out.append(cfg)
     return out
+
+
+def load_trends_config(path: str | Path = "marketing-agent.yml") -> TrendsConfig:
+    """Load the top-level `trends:` block. Returns disabled default if absent."""
+    data = _load_raw(path)
+    if data is None:
+        return TrendsConfig()
+    block = data.get("trends") or {}
+    if not isinstance(block, dict):
+        return TrendsConfig()
+    return TrendsConfig(
+        enabled=bool(block.get("enabled", False)),
+        languages=list(block.get("languages") or []),
+        hn_query=str(block.get("hn_query") or ""),
+        subreddits=list(block.get("subreddits") or []),
+        top_n=int(block.get("top_n") or 3),
+        hours=int(block.get("hours") or 168),
+    )
+
+
+def _load_raw(path: str | Path) -> Optional[dict]:
+    """Shared YAML loader used by load_config + load_trends_config."""
+    p = Path(path)
+    if not p.exists():
+        return None
+    text = p.read_text(encoding="utf-8")
+
+    if os.getenv("MARKETING_AGENT_USE_PYYAML"):
+        try:
+            import yaml  # type: ignore
+            return yaml.safe_load(text) or {}
+        except Exception:
+            return _parse_minimal_yaml(text)
+    return _parse_minimal_yaml(text)
 
 
 # ───────────────── minimal YAML parser ─────────────────
