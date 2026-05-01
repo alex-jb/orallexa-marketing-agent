@@ -136,31 +136,31 @@ def render_report(posted, rejected, metrics, mem_stats, *, low_sample=5) -> tupl
         return f"{num}/{num + den} ({100 * num / (num + den):.0f}%)" if (num + den) else "n/a"
 
     lines = [
-        f"# Trend-anchored vs commit-driven post performance",
-        f"",
+        "# Trend-anchored vs commit-driven post performance",
+        "",
         f"_Generated {datetime.now(timezone.utc).isoformat()}_",
-        f"",
-        f"## Sample sizes (queue/posted)",
+        "",
+        "## Sample sizes (queue/posted)",
         f"- trend-anchored: **{n_t}** posted",
         f"- commit-driven: **{n_c}** posted",
-        f"",
-        f"## Critic rejection rates (queue/rejected vs queue/posted)",
+        "",
+        "## Critic rejection rates (queue/rejected vs queue/posted)",
         f"- trend-anchored: {rate(rt, n_t)}",
         f"- commit-driven: {rate(rc, n_c)}",
-        f"",
-        f"## X engagement medians",
+        "",
+        "## X engagement medians",
     ]
     for metric in ("like", "repost", "reply"):
         t = _median(metrics.get("trend", {}).get(metric, []))
         c = _median(metrics.get("commit", {}).get(metric, []))
         lines.append(f"- **{metric}** — trend: {t}  ·  commit: {c}")
     lines += [
-        f"",
-        f"## Trend-URL dedup memory",
+        "",
+        "## Trend-URL dedup memory",
         f"- rows: **{mem_stats['rows']}**",
         f"- top sources: {mem_stats['by_source_top']}",
-        f"",
-        f"## Verdict",
+        "",
+        "## Verdict",
     ]
 
     # Verdict logic
