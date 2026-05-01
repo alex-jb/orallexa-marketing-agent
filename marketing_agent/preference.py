@@ -10,16 +10,42 @@ Migration path: at ~500+ pairs, swap to DPO via Together.ai or similar
 (~$3/1M tokens). Until then, ICPL captures most of the value at zero cost.
 
 Storage: extra table in the same SQLite as memory + cost + engagement.
+
+SFOS mirror (added 2026-05-01)
+------------------------------
+On each record(), we also append a JSONL row to
+~/.orallexa-marketing-agent/preference-pairs.jsonl in the schema
+solo_founder_os.preference reads (`log_edit` shape:
+{ts, task, original, edited, context, note}). This lets the SFOS-side
+`preference_preamble(...)` and other agents see marketing-agent's
+preference data too, while the SQLite-backed PreferenceStore.record /
+few_shot_block API keeps working unchanged.
+
+The mirror is best-effort — SQLite write never blocks on the JSONL.
+Override path with MARKETING_AGENT_PREFERENCE_JSONL.
 """
 from __future__ import annotations
 import difflib
+import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from marketing_agent.logging import get_logger
 from marketing_agent.memory import _default_db_path
 from marketing_agent.types import Platform
+
+log = get_logger(__name__)
+
+
+def _default_jsonl_path() -> Path:
+    """Where the SFOS-compatible JSONL mirror lives."""
+    override = os.getenv("MARKETING_AGENT_PREFERENCE_JSONL")
+    if override:
+        return Path(override)
+    return Path.home() / ".orallexa-marketing-agent" / "preference-pairs.jsonl"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS edits (
@@ -57,18 +83,27 @@ def _diff_summary(a: str, b: str) -> tuple[int, float]:
 class PreferenceStore:
     """SQLite-backed log of (original, edited) pairs from human review."""
 
-    def __init__(self, db_path: Optional[Path | str] = None):
+    def __init__(self, db_path: Optional[Path | str] = None,
+                   jsonl_path: Optional[Path | str] = None):
         self.db_path = Path(db_path) if db_path else _default_db_path()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(_SCHEMA)
+        self.jsonl_path = (Path(jsonl_path) if jsonl_path
+                              else _default_jsonl_path())
 
     def record(self, *, project_name: str, platform: Platform,
                  original_body: str, edited_body: str) -> Optional[int]:
-        """Append an edit. Returns row id, or None if no actual change."""
+        """Append an edit. Returns row id, or None if no actual change.
+
+        Writes both to SQLite (fast in-process lookups) AND to the
+        SFOS-compatible JSONL mirror (so cross-agent ICPL consumers
+        see marketing's preference signal). Mirror is best-effort.
+        """
         if original_body.strip() == edited_body.strip():
             return None
         chars, ratio = _diff_summary(original_body, edited_body)
+        ts = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(
                 """INSERT INTO edits
@@ -76,10 +111,36 @@ class PreferenceStore:
                     diff_chars, edit_ratio, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (project_name, platform.value, original_body, edited_body,
-                 chars, ratio,
-                 datetime.now(timezone.utc).isoformat()),
+                 chars, ratio, ts),
             )
-            return cur.lastrowid
+            row_id = cur.lastrowid
+        try:
+            self._append_jsonl(
+                project_name=project_name, platform=platform,
+                original_body=original_body, edited_body=edited_body,
+                edit_ratio=ratio, ts=ts,
+            )
+        except Exception as e:  # pragma: no cover (perms/disk)
+            log.debug("preference JSONL mirror write failed: %s", e)
+        return row_id
+
+    def _append_jsonl(self, *, project_name: str, platform: Platform,
+                         original_body: str, edited_body: str,
+                         edit_ratio: float, ts: str) -> None:
+        """Append one row in solo_founder_os.preference schema:
+        {ts, task, original, edited, context, note}."""
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        row = {
+            "ts": ts,
+            "task": f"draft_{platform.value}",
+            "original": original_body[:5000],
+            "edited": edited_body[:5000],
+            "context": {"project_name": project_name,
+                          "platform": platform.value},
+            "note": f"edit_ratio={edit_ratio}",
+        }
+        with open(self.jsonl_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def recent_pairs(self, *, project_name: Optional[str] = None,
                        platform: Optional[Platform] = None,

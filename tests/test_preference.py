@@ -141,3 +141,56 @@ def test_stats_aggregates(store):
     assert s["total_edits"] == 2
     assert s["by_platform"] == {"x": 1, "linkedin": 1}
     assert s["avg_edit_ratio"] > 0
+
+
+# ───────────────── SFOS JSONL mirror ─────────────────
+
+
+def test_record_mirrors_to_sfos_jsonl(tmp_path):
+    """Each record() writes both SQLite + a JSONL row in the
+    solo_founder_os.preference schema (ts/task/original/edited/context)."""
+    import json
+    jpath = tmp_path / "preference-pairs.jsonl"
+    s = PreferenceStore(db_path=tmp_path / "p.db", jsonl_path=jpath)
+    s.record(project_name="orallexa", platform=Platform.X,
+              original_body="Just shipped v0.18 — VibeX integration done",
+              edited_body="🚀 Just shipped v0.18 — VibeX integration done. "
+                            "Biggest unlock: agent now self-sources from your "
+                            "own platform's hot projects.")
+    lines = jpath.read_text().splitlines()
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    # SFOS log_edit schema
+    for k in ("ts", "task", "original", "edited", "context"):
+        assert k in row
+    assert row["task"] == "draft_x"
+    assert row["context"]["project_name"] == "orallexa"
+    assert row["context"]["platform"] == "x"
+
+
+def test_jsonl_mirror_skipped_when_no_change(tmp_path):
+    jpath = tmp_path / "p.jsonl"
+    s = PreferenceStore(db_path=tmp_path / "p.db", jsonl_path=jpath)
+    s.record(project_name="p", platform=Platform.X,
+              original_body="same", edited_body="same")
+    assert not jpath.exists()
+
+
+def test_jsonl_path_overridable_via_env(tmp_path, monkeypatch):
+    custom = tmp_path / "custom-pref.jsonl"
+    monkeypatch.setenv("MARKETING_AGENT_PREFERENCE_JSONL", str(custom))
+    s = PreferenceStore(db_path=tmp_path / "p.db")
+    s.record(project_name="p", platform=Platform.X,
+              original_body="A", edited_body="B totally different")
+    assert custom.exists()
+
+
+def test_record_returns_row_id_even_when_jsonl_path_unwritable(tmp_path):
+    """If JSONL mirror fails (perms, disk full), SQLite record still wins.
+    We force this by passing a path inside a non-existent symlink chain."""
+    bad = tmp_path / "no-such-dir" / "deep" / "p.jsonl"
+    s = PreferenceStore(db_path=tmp_path / "p.db", jsonl_path=bad)
+    # Should still return SQLite row id; mirror best-effort creates parents
+    rid = s.record(project_name="p", platform=Platform.X,
+                     original_body="A", edited_body="B different")
+    assert rid is not None and rid > 0

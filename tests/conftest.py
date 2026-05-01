@@ -22,8 +22,12 @@ def _isolate_marketing_agent_state(tmp_path, monkeypatch):
                           str(tmp_path / "queue"))
     monkeypatch.setenv("MARKETING_AGENT_REFLECTIONS_JSONL",
                           str(tmp_path / "reflections.jsonl"))
+    monkeypatch.setenv("MARKETING_AGENT_PREFERENCE_JSONL",
+                          str(tmp_path / "preference-pairs.jsonl"))
     monkeypatch.setenv("SFOS_SKILLS_DIR",
                           str(tmp_path / "sfos-skills"))
+    monkeypatch.setenv("SFOS_BANDIT_DB",
+                          str(tmp_path / "sfos-bandit.sqlite"))
     # USAGE_LOG_PATH is a constant, not env-driven — patch it lazily
     # only if the test imports the cost module.
     import marketing_agent.cost as cost_mod
