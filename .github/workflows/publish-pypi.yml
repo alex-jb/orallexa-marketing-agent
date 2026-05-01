@@ -1,9 +1,20 @@
 name: Publish to PyPI
 
-# Triggered by pushing a `v*.*.*` tag (e.g. v0.8.0). Builds wheel + sdist,
-# verifies them, then uploads to PyPI iff PYPI_API_TOKEN secret is set.
-# If the secret isn't set, the workflow runs through build + check (catching
-# any packaging regressions) but skips upload — safe to enable later.
+# Triggered by pushing a `v*.*.*` tag (e.g. v0.18.1). Builds wheel + sdist,
+# verifies them, then uploads to PyPI via Trusted Publishing (OIDC) — no
+# API token to manage / leak. Falls back to PYPI_API_TOKEN secret iff
+# Trusted Publishing isn't configured AND the secret IS present.
+#
+# One-time setup (do this ONCE per project, not per release):
+#   1. Go to https://pypi.org/manage/account/publishing/
+#   2. Click "Add a new pending publisher"
+#   3. Fill in:
+#        Project name:    orallexa-marketing-agent
+#        Owner:           alex-jb
+#        Repository:      orallexa-marketing-agent
+#        Workflow:        publish-pypi.yml
+#        Environment:     (leave blank)
+#   4. Submit. Done — the next `git push --tags` triggers a real upload.
 
 on:
   push:
@@ -17,6 +28,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # required for PyPI Trusted Publishing OIDC
 
 jobs:
   build:
@@ -46,20 +58,33 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Publish to PyPI
+      - name: Publish to PyPI via Trusted Publishing (OIDC)
+        # Preferred path — pypa/gh-action-pypi-publish exchanges the
+        # GitHub OIDC token for a short-lived PyPI credential. Skips
+        # silently when Trusted Publishing isn't configured on the
+        # project; the next step picks up via the legacy token instead.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
+        continue-on-error: true
+
+      - name: Publish to PyPI via legacy token (fallback)
         if: env.PYPI_API_TOKEN != ''
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+        run: twine upload --skip-existing dist/*
 
-      - name: Skip publish (no token)
+      - name: Setup hint (no Trusted Publisher and no token)
         if: env.PYPI_API_TOKEN == ''
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          echo "::notice::PYPI_API_TOKEN secret not set — built artifacts are
-          attached to the workflow run, but upload was skipped. Set the secret
-          at https://github.com/${{ github.repository }}/settings/secrets/actions
-          to enable auto-publish on next tag push."
+          echo "::notice::Tag pushed but no PyPI publishing path configured."
+          echo "::notice::Recommended: configure Trusted Publishing at"
+          echo "::notice::  https://pypi.org/manage/account/publishing/"
+          echo "::notice::with project=orallexa-marketing-agent, owner=alex-jb,"
+          echo "::notice::repo=orallexa-marketing-agent, workflow=publish-pypi.yml"
+          echo "::notice::Built artifacts are attached to this run."
