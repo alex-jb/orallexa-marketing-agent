@@ -11,13 +11,20 @@ heuristic. We compute the post's structural fingerprint, render a skill
 markdown that documents "this kind of post worked." Claude Code (or the
 Agent SDK with skills="all") loads it as a hint on the next campaign.
 
-Output dir: `skills/learned/<slug>.md` — separate from the curated
-`skills/marketing-voice/` so the auto-extracted content doesn't pollute
-the human-authored brand voice guide.
+Output dirs (both written so cross-agent + repo-local consumers find it):
+  - `skills/learned/<slug>.md` — repo-local, version-controlled, separate
+    from the curated `skills/marketing-voice/` so auto-extracted content
+    doesn't pollute the human-authored brand voice guide.
+  - `~/.solo-founder-os/skills/<slug>.md` — SFOS shared dir; this is what
+    `solo_founder_os.skills.list_skills()` scans, so other agents in the
+    stack (vc-outreach, customer-discovery, bilingual) can `pip install
+    solo-founder-os` and pick up marketing-agent's distilled wins for
+    free. Override path with SFOS_SKILLS_DIR.
 
-Idempotent: re-running on the same top-quartile post replaces the file.
+Idempotent: re-running on the same top-quartile post replaces both files.
 """
 from __future__ import annotations
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -31,6 +38,14 @@ log = get_logger(__name__)
 
 
 DEFAULT_SKILL_DIR = Path("skills/learned")
+
+
+def _sfos_skills_dir() -> Path:
+    """SFOS-shared skills dir. Honors SFOS_SKILLS_DIR env override."""
+    override = os.getenv("SFOS_SKILLS_DIR")
+    if override:
+        return Path(override)
+    return Path.home() / ".solo-founder-os" / "skills"
 
 
 def _slugify(s: str) -> str:
@@ -129,13 +144,31 @@ def promote(*, platform: Optional[Platform] = None,
               metric: str = "like",
               skill_dir: Optional[Path | str] = None,
               db_path: Optional[Path | str] = None,
-              min_samples: int = 4) -> list[Path]:
+              min_samples: int = 4,
+              sfos_mirror: bool = True) -> list[Path]:
     """Find top-quartile posts and write `skills/learned/<slug>.md` for each.
 
-    Returns the list of files written/replaced.
+    When `sfos_mirror` is True (default), each promoted skill is also
+    written to `~/.solo-founder-os/skills/<slug>.md` so SFOS' shared
+    `list_skills()` picks it up cross-agent. Override SFOS path via
+    SFOS_SKILLS_DIR env var. Pass sfos_mirror=False to disable in tests
+    where you don't want side-effects in the user's home dir (the
+    autouse conftest fixture handles this for the suite).
+
+    Returns the list of repo-local paths written. SFOS-mirror paths are
+    not returned (they're a side effect, not a primary product).
     """
     target = Path(skill_dir) if skill_dir else DEFAULT_SKILL_DIR
     target.mkdir(parents=True, exist_ok=True)
+
+    sfos_target = _sfos_skills_dir() if sfos_mirror else None
+    if sfos_target is not None:
+        try:
+            sfos_target.mkdir(parents=True, exist_ok=True)
+        except OSError as e:  # pragma: no cover (perms only)
+            log.warning("SFOS mirror disabled — cannot mkdir %s: %s",
+                          sfos_target, e)
+            sfos_target = None
 
     posts = find_top_quartile_posts(
         platform=platform, metric=metric,
@@ -146,13 +179,22 @@ def promote(*, platform: Optional[Platform] = None,
         body = (p.get("body_preview") or "")[:600]
         finger = _structural_fingerprint(body)
         slug = _slugify(f"{p['platform']}-{p['external_id'] or p['id']}")
-        path = target / f"{slug}.md"
         content = _render_skill(body, finger, p, metric=metric)
+
+        path = target / f"{slug}.md"
         path.write_text(content, encoding="utf-8")
         written.append(path)
+
+        if sfos_target is not None:
+            try:
+                (sfos_target / f"{slug}.md").write_text(content, encoding="utf-8")
+            except OSError as e:  # pragma: no cover
+                log.warning("SFOS mirror write failed for %s: %s", slug, e)
+
         log.info("promoted high-engagement post to skill",
                   extra={"platform": p["platform"], "peak": p["peak"],
-                          "path": str(path)})
+                          "path": str(path),
+                          "sfos_mirror": str(sfos_target) if sfos_target else None})
     return written
 
 

@@ -152,3 +152,55 @@ def test_promote_returns_empty_when_no_data(tmp_path):
     out_dir = tmp_path / "skills"
     written = promote(db_path=tmp_path / "missing.db", skill_dir=out_dir)
     assert written == []
+
+
+# ───────────────── SFOS skills mirror ─────────────────
+
+
+def test_promote_mirrors_to_sfos_skills_dir(tmp_path):
+    """Each promoted skill is also written under SFOS_SKILLS_DIR so that
+    solo_founder_os.skills.list_skills() picks them up cross-agent."""
+    db = tmp_path / "h.db"
+    likes = [5, 10, 15, 20, 200]
+    for i, peak in enumerate(likes):
+        _seed_post(db, ext_id=f"e{i}", body=f"post {i}", peak_likes=peak)
+    out_dir = tmp_path / "skills"
+    written = promote(db_path=db, skill_dir=out_dir, min_samples=4)
+
+    # SFOS_SKILLS_DIR is set by conftest autouse to tmp_path/sfos-skills
+    import os
+    sfos_dir = os.environ.get("SFOS_SKILLS_DIR")
+    assert sfos_dir, "conftest should have set SFOS_SKILLS_DIR"
+    sfos_files = list(__import__("pathlib").Path(sfos_dir).glob("*.md"))
+    # Every repo-local skill should have a corresponding SFOS-mirror file
+    assert len(sfos_files) == len(written)
+    repo_names = {p.name for p in written}
+    sfos_names = {p.name for p in sfos_files}
+    assert repo_names == sfos_names
+
+
+def test_promote_sfos_mirror_disabled_when_flag_false(tmp_path):
+    db = tmp_path / "h.db"
+    likes = [5, 10, 15, 20, 200]
+    for i, peak in enumerate(likes):
+        _seed_post(db, ext_id=f"e{i}", body=f"post {i}", peak_likes=peak)
+    out_dir = tmp_path / "skills"
+    promote(db_path=db, skill_dir=out_dir, min_samples=4, sfos_mirror=False)
+
+    import os
+    import pathlib
+    sfos_dir = pathlib.Path(os.environ["SFOS_SKILLS_DIR"])
+    # Either dir doesn't exist or is empty
+    assert not sfos_dir.exists() or list(sfos_dir.glob("*.md")) == []
+
+
+def test_promote_sfos_mirror_honors_env_override(tmp_path, monkeypatch):
+    custom = tmp_path / "elsewhere"
+    monkeypatch.setenv("SFOS_SKILLS_DIR", str(custom))
+    db = tmp_path / "h.db"
+    likes = [5, 10, 15, 20, 200]
+    for i, peak in enumerate(likes):
+        _seed_post(db, ext_id=f"e{i}", body=f"post {i}", peak_likes=peak)
+    promote(db_path=db, skill_dir=tmp_path / "skills", min_samples=4)
+    assert custom.exists()
+    assert len(list(custom.glob("*.md"))) > 0
