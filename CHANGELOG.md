@@ -2,6 +2,18 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.4] — 2026-05-02
+
+**Adopt solo-founder-os v0.19 — picks up sfos-bus / sfos-inbox / sfos-eval / sfos-retro / sfos-cron.**
+
+### Changed
+- `[shared]` extra: `solo-founder-os>=0.13.0` → `>=0.19.0`. v0.13 was the version that took marketing-agent's bandit + autopsy into SFOS core; v0.14-v0.19 added cross-terminal coordination (sfos-bus), centralized governance rail (sfos-inbox), Claude-judge eval harness (sfos-eval), the cross-agent retro report I added in v0.17 (sfos-retro), and a unified cron module (v0.19).
+
+No code changes in marketing-agent — this commit just opens the door so future work can `from solo_founder_os.cross_agent_report import collect` etc. against the version that exists.
+
+### Tests
+- 400 → **400 tests** (no behavior change)
+
 ## [0.18.3] — 2026-05-01
 
 **Trends path now also tags variant_key — closes the second half of the bandit blind spot.**
