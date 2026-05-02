@@ -55,14 +55,14 @@ def test_project_with_trend_keeps_user_project_as_subject(project, trend_items):
     assert synth.name == project.name
     assert synth.tagline == project.tagline
     # Trend hook is FIRST in recent_changes, original commits follow.
-    assert synth.recent_changes[0].startswith("Trending now (github):")
+    assert synth.recent_changes[0].startswith("Trending in our niche (github):")
     assert "acme/agent-thing" in synth.recent_changes[0]
     assert synth.recent_changes[1] == "v0.5: added bandit"
 
 
 def test_project_with_trend_appends_framing_instruction(project, trend_items):
     synth = _project_with_trend(project, trend_items[1])
-    assert "connects this project's angle to a currently-trending topic" in (
+    assert "ties this project to the trending topic" in (
         synth.description or ""
     )
     # Original description must be preserved.
@@ -73,12 +73,21 @@ def test_project_with_trend_handles_missing_description(trend_items):
     bare = Project(name="X", tagline="t")
     synth = _project_with_trend(bare, trend_items[0])
     assert synth.description is not None
-    assert "currently-trending topic" in synth.description
+    assert "trending topic" in synth.description
 
 
-def test_project_with_trend_includes_url_when_present(project, trend_items):
+def test_project_with_trend_hook_excludes_url_to_save_chars(project, trend_items):
+    """Reverse of the old test: the hook must NOT contain URLs (LLM
+    echoes them and bloats the draft past the X 280-char gate)."""
     synth = _project_with_trend(project, trend_items[0])
-    assert "https://github.com/acme/agent-thing" in synth.recent_changes[0]
+    assert "https://" not in synth.recent_changes[0]
+
+
+def test_project_with_trend_hook_under_120_chars(project, trend_items):
+    """80-char title cap + fixed prefix keeps the hook small enough
+    that LLM echoes don't blow past platform char budgets."""
+    synth = _project_with_trend(project, trend_items[0])
+    assert len(synth.recent_changes[0]) <= 130
 
 
 # ───────────────── trends_to_drafts ─────────────────

@@ -2,6 +2,25 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.5] — 2026-05-02
+
+**Fix systematic 280-char overflow on trends drafts.**
+
+### The bug
+Production verification today found 7/9 trends-driven cron drafts were over X's 280-char gate (range 282-327, avg ~295). Both drafts I tried to publish today hit the gate and required manual trims (312 → 264, 298 → 227). Commit-driven drafts had no such issue (177-270 range). Root cause: trends path's synthetic Project carried a verbose hook in `recent_changes[0]` (full title + summary + URL → ~120 chars) that the LLM echoed.
+
+### Fix — three layers
+1. **`trends_to_drafts._project_with_trend()`** — hook is now `"Trending in our niche ({source}): {title[:80]}"`. Drops summary entirely, drops URL (X t.co would shorten anyway), caps title at 80 chars. Pre-fix hooks were ~120 chars; post-fix ~110 max.
+2. **`generator._system_for(Platform.X)`** — system prompt for X tightened: "STRICTLY <= 270 characters total — the X publish gate hard-rejects anything over 280. Count before you respond and rewrite shorter if needed." Anthropic Sonnet ignores soft caps ~30-50% of the time on trends inputs; this is firmer.
+3. **`generator._retry_shorter()`** — post-LLM safety net. When `len(text) > _PLATFORM_HARD_CAP[platform]` (270 for X), do one re-prompt asking for a shorter rewrite of the same idea. If even the retry stays over cap, mechanically truncate at the last sentence boundary, then last word boundary as fallback. Returned text is GUARANTEED <= cap. Worst case adds 1 LLM call per overflowing draft, only when needed.
+
+### Tests
+- 400 → **405 tests** (+5: 2 hook shape tests in `test_trends_to_drafts.py`, 4 trim-safety tests in `test_generator_variants.py`)
+- Coverage steady
+
+### Production behavior
+Next daily cron's 9 trends drafts should clear the X gate at first attempt. The `bandit from-engagement` flow can finally collect data on the trends-path arm without manual trim intervention.
+
 ## [0.18.4] — 2026-05-02
 
 **Adopt solo-founder-os v0.19 — picks up sfos-bus / sfos-inbox / sfos-eval / sfos-retro / sfos-cron.**

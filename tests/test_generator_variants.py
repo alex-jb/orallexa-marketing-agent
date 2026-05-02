@@ -206,3 +206,78 @@ def test_generate_posts_llm_path_unsupported_platform_skips_hint(
                           mode=GenerationMode.HYBRID, n_variants=3)
 
     assert captured["variant_hint"] is None
+
+
+# ───────────────── X 280-char hard cap (post-LLM safety) ─────────────────
+
+
+def test_retry_shorter_returns_retry_when_under_cap():
+    """When the retry comes back under cap, return that text verbatim."""
+    from unittest.mock import MagicMock
+    from marketing_agent.content.generator import _retry_shorter
+
+    fake_resp = MagicMock()
+    fake_resp.content = [MagicMock(type="text", text="Short rewrite OK")]
+    fake_client = MagicMock()
+    fake_client.messages_create.return_value = (fake_resp, None)
+
+    out = _retry_shorter(fake_client, Platform.X, "sys", "user", cap=270,
+                            current_text="x" * 320)
+    assert out == "Short rewrite OK"
+    assert len(out) <= 270
+
+
+def test_retry_shorter_truncates_at_sentence_boundary():
+    """When even the retry stays over cap, fall back to mechanical
+    truncate at last sentence boundary."""
+    from unittest.mock import MagicMock
+    from marketing_agent.content.generator import _retry_shorter
+
+    long_retry = ("First sentence here. "
+                    "Second sentence with content. "
+                    "Third sentence padding. " * 5)
+    fake_resp = MagicMock()
+    fake_resp.content = [MagicMock(type="text", text=long_retry)]
+    fake_client = MagicMock()
+    fake_client.messages_create.return_value = (fake_resp, None)
+
+    out = _retry_shorter(fake_client, Platform.X, "sys", "user", cap=100,
+                            current_text="z" * 320)
+    assert len(out) <= 100
+    # Should end at a sentence boundary (period/question/exclamation), not
+    # mid-word.
+    assert out.endswith(".") or out.endswith("?") or out.endswith("!")
+
+
+def test_retry_shorter_falls_back_to_word_boundary_when_no_sentence():
+    from unittest.mock import MagicMock
+    from marketing_agent.content.generator import _retry_shorter
+
+    no_sentence = "alpha beta gamma delta epsilon zeta eta theta iota kappa"
+    fake_resp = MagicMock()
+    fake_resp.content = [MagicMock(type="text", text=no_sentence)]
+    fake_client = MagicMock()
+    fake_client.messages_create.return_value = (fake_resp, None)
+
+    out = _retry_shorter(fake_client, Platform.X, "sys", "user", cap=30,
+                            current_text="z" * 100)
+    assert len(out) <= 30
+    # Last char shouldn't be in the middle of a word
+    assert not out.endswith(("a", "b", "c", "d", "e")) or out.endswith(
+        ("alpha", "beta", "gamma", "delta", "epsilon")
+    )
+
+
+def test_retry_shorter_keeps_original_when_retry_errors_and_under_cap_after_truncate():
+    """If the retry call errors out, fall back to mechanical truncate of
+    the ORIGINAL text."""
+    from unittest.mock import MagicMock
+    from marketing_agent.content.generator import _retry_shorter
+
+    fake_client = MagicMock()
+    fake_client.messages_create.return_value = (None, RuntimeError("api down"))
+
+    long_orig = "First sentence. " + ("padding word " * 30)
+    out = _retry_shorter(fake_client, Platform.X, "sys", "user", cap=80,
+                            current_text=long_orig)
+    assert len(out) <= 80

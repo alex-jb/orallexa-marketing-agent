@@ -59,19 +59,23 @@ def _project_with_trend(base: Project, trend: TrendItem) -> Project:
     a hook line at the top of `recent_changes`, plus an instruction in
     the description telling the LLM to connect the project's angle to
     the trending topic — without pretending the trend is theirs.
+
+    Hook length matters: longer hooks reliably push LLM output over
+    platform char limits because the model echoes the input. Trim the
+    title to 80 chars, drop summaries entirely, and DO NOT include
+    the URL (the model wastes characters quoting URLs that t.co
+    shortens anyway). Pre-fix observation: trends drafts averaged
+    30-50 chars longer than commit drafts, with 7/9 over 280.
     """
-    hook = f"Trending now ({trend.source}): {trend.title}"
-    if trend.summary:
-        hook += f" — {trend.summary[:160]}"
-    if trend.url:
-        hook += f" [{trend.url}]"
+    title = (trend.title or "")[:80]
+    hook = f"Trending in our niche ({trend.source}): {title}"
 
     framing = (
-        "\n\nTask: write a post that connects this project's angle to a "
-        "currently-trending topic in our niche (listed first under "
-        "'recent changes'). Be honest — name the trend, share a take, "
-        "link back to what the project is doing in this space. Do not "
-        "claim the trend as the project's own work."
+        "\n\nTask: write a brief post that ties this project to the "
+        "trending topic listed first under 'recent changes'. Honest — "
+        "name the trend, give one specific take, do NOT claim the "
+        "trend is the project's own work. Stay strictly inside the "
+        "platform char budget specified in the system prompt."
     )
     new_desc = (base.description or "") + framing
     return Project(

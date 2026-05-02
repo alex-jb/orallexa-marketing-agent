@@ -197,8 +197,81 @@ def _generate_with_llm(
     text = AnthropicClient.extract_text(resp).strip()
     text = text.strip('"').strip("'").strip()
 
+    # Safety net: hard cap per platform. Anthropic Sonnet ignores "max
+    # 270 chars" in the prompt ~30-50% of the time on trends inputs
+    # (verified 2026-05-02 on 9 production drafts: avg 30-50 chars
+    # over). One retry with a tighter prompt, then mechanical truncate
+    # at last-sentence boundary if still over.
+    cap = _PLATFORM_HARD_CAP.get(platform)
+    if cap is not None and len(text) > cap:
+        text = _retry_shorter(client, platform, system_prompt, user_prompt,
+                                 cap, current_text=text, variant_hint=variant_hint)
+
     return _post_for(platform, text, project, subreddit=subreddit,
                         variant_hint=variant_hint).with_count()
+
+
+# Per-platform hard caps used by _retry_shorter. Keep these conservative
+# (e.g. 270 for X even though X allows 280) so we have room for any
+# downstream additions before the actual platform-side limit.
+_PLATFORM_HARD_CAP: dict[Platform, int] = {
+    Platform.X: 270,
+}
+
+
+def _retry_shorter(client, platform: Platform, system_prompt: str,
+                      user_prompt: str, cap: int, *,
+                      current_text: str,
+                      variant_hint: Optional[str] = None) -> str:
+    """One LLM retry asking explicitly for a shorter rewrite, then a
+    mechanical truncate-at-sentence-boundary as last resort.
+
+    Returns text guaranteed to be <= cap chars.
+    """
+    from marketing_agent.llm.anthropic_compat import (
+        AnthropicClient, DEFAULT_SONNET_MODEL,
+    )
+    log.warning(
+        "%s draft over cap (%d > %d), retrying shorter",
+        platform.value, len(current_text), cap,
+    )
+    retry_user = (
+        f"Your previous draft was {len(current_text)} characters but the "
+        f"hard cap is {cap}. Rewrite the EXACT same idea below in <= {cap} "
+        f"chars. Do not pad, do not over-explain. Output ONLY the rewritten "
+        f"post text.\n\nPrevious draft:\n{current_text}"
+    )
+    resp, err = client.messages_create(
+        model=DEFAULT_SONNET_MODEL,
+        max_tokens=400,
+        system=[{
+            "type": "text", "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": retry_user}],
+    )
+    candidate = current_text
+    if err is None and resp is not None:
+        retry_text = AnthropicClient.extract_text(resp).strip()
+        retry_text = retry_text.strip('"').strip("'").strip()
+        if retry_text and len(retry_text) <= cap:
+            return retry_text
+        # Even retry was over — prefer retry text for truncate since the
+        # model tried to compress and may have a tidier sentence boundary.
+        if retry_text:
+            candidate = retry_text
+
+    # Mechanical truncate: prefer last sentence boundary, then last word
+    if len(candidate) <= cap:
+        return candidate
+    truncated = candidate[:cap]
+    for sep in (". ", "? ", "! ", "\n"):
+        idx = truncated.rfind(sep)
+        if idx > cap // 2:
+            return truncated[: idx + len(sep)].rstrip()
+    # No clean boundary — cut at last space
+    idx = truncated.rfind(" ")
+    return (truncated[:idx] if idx > cap // 2 else truncated).rstrip()
 
 
 def _system_for(platform: Platform, *,
@@ -212,8 +285,11 @@ def _system_for(platform: Platform, *,
     )
     extras = {
         Platform.X: (
-            " Output a single tweet, max 270 chars (we'll append a URL). "
-            "1 emoji max at start. No hashtags. End on a concrete observation, "
+            " Output a single tweet, STRICTLY <= 270 characters total — "
+            "the X publish gate hard-rejects anything over 280. Count "
+            "before you respond and rewrite shorter if needed. 1 emoji "
+            "max at start. No hashtags. No URL in body (the platform "
+            "shortens links separately). End on a concrete observation, "
             "not a CTA."
         ),
         Platform.REDDIT: (
