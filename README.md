@@ -2,8 +2,9 @@
 
 **English** | [中文](README.zh-CN.md)
 
-[![Version](https://img.shields.io/badge/version-0.18.5-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-405%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.18.6-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-408%20passing-brightgreen.svg)](#)
+[![PyPI](https://img.shields.io/pypi/v/orallexa-marketing-agent.svg)](https://pypi.org/project/orallexa-marketing-agent/)
 [![Coverage](https://img.shields.io/badge/coverage-77%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
@@ -72,41 +73,35 @@ To enable LLM-quality content, add an Anthropic key to `.env`. To actually post,
 
 ---
 
-## Status — v0.6.0
+## Status — v0.18.6 (PyPI live, full bandit feedback loop running)
 
-What works today:
+408 tests passing · 77% coverage · CI green Python 3.11 / 3.12 · live on PyPI: `pip install "orallexa-marketing-agent[mcp]"`
 
-| Layer | Capability |
+| Layer | What works today |
 |---|---|
-| **Agentic core** | **Drafter → Critic → Rewriter supervisor** (Reflexion-lite, no LangGraph dep) · **persistent reflexion memory** (cross-session learning from past failures) · **Claude Agent SDK adapter** (uses official SDK 0.1.68+ when installed; falls back gracefully) · **prompt caching markers** on all LLM calls (cuts cost ~80% on daily cron) |
-| **Content** | Claude (Sonnet 4.6 / Haiku 4.5) or template fallback · auto-thread split · image-prompt suggester · N stylistic variants per platform |
-| **Platforms — auto-publish** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · **Threads (Meta Graph API, production April 2026, 250 posts/24h)** |
-| **Platforms — content-prep only** | Dev.to (markdown export, manual paste) · LinkedIn (API restricted) · **知乎 / 小红书 (manual publish, never auto — see [Chinese platform strategy](#chinese-platform-strategy-2026-reality))** |
-| **Quality gate** | Heuristic + LLM critic (auto-rejects hype/spam/length-fail before queuing) · **hybrid retrieval dedup** (60% dense + 40% BM25, +17pp MRR vs dense-alone) — never repost a paraphrase |
-| **Reliability** | Exponential-backoff retry on all platform adapters (transient errors, 429, 5xx) · structured JSON logs (Langfuse / OTel-compatible) |
-| **Workflow** | HITL approval queue · 3 GitHub Actions: `daily.yml` · `release-announce.yml` · `publish.yml` · **multi-project YAML config** (one cron, N projects) |
-| **Strategy** | LaunchPlan generator (30/60/90-day, PH-launch-relative timing) · reply-draft suggester · variant bandit (Thompson sampling) · best-time-to-post (hour-of-week CDF) |
-| **Analytics** | EngagementTracker pulls X metrics · cost tracker (Anthropic + X per-post) · SQLite single-file storage |
-| **Integrations** | VibeXForge sister-product event push · **MCP server** (`marketing-agent-mcp`) · **Claude Skill** (`skills/marketing-voice/`) · **A2A agent card** (`agent_card.json`) — discoverable by other agents |
-| **Distribution** | **Dockerfile + docker-compose** (one-command self-host) · CI matrix (Python 3.11/3.12) · pytest-cov 60%+ floor · Codecov upload |
+| **Generator** | HYBRID = Cloudflare Workers AI edge tier (Llama 3.3, ~$0.011/1M tokens) → Anthropic Sonnet 4.6 fallback. Falls through to deterministic templates if both fail (with warning log so silent failure is impossible). Prompt caching cuts cost ~80% on daily cron. |
+| **Quality gate** | Heuristic + LLM critic (auto-rejects hype words, length overflow, hashtag spam). **Hybrid retrieval dedup** (60% dense + 40% BM25, +17pp MRR vs dense-alone) — never reposts a paraphrase. **3-layer X 280-char overflow defense** (small hook + strict prompt + post-LLM retry/truncate). |
+| **Self-evolving stack** | **Variant bandit** (Thompson Beta-conjugate over emoji/question/stat-led; pre-LLM hint selection so 1 LLM call per platform). **Reflexion memory** (cross-session critic patterns). **ICPL preference store** (5-shot exemplars from human edits). **Voyager auto-skill promotion** (top-quartile posts → `skills/learned/*.md` AND `~/.solo-founder-os/skills/<slug>.md` for cross-agent reuse). |
+| **Proactive loop** | **Trends module** scans GitHub / HN / Reddit (free, stdlib HTTP only) + **VibeX top-of-feed source** (your own platform's hot projects via Supabase Management API, $0). **`trends_to_drafts`** turns top N into platform-specific drafts. **Per-(project, URL) cooldown** (default 7d) prevents writing about the same hot story 4 days in a row. |
+| **Cost guards** | **`MARKETING_AGENT_DAILY_BUDGET_USD`** soft cap (reads `~/.marketing-agent/usage.jsonl`, prices via `cost.PRICES`, sums today UTC; skips proactive pass when over). Cross-provider usage logging into a single JSONL the cost-audit-agent reads. |
+| **Platforms — auto-publish** | X (OAuth 1.0a + Bearer for reads) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Threads (Meta Graph API, production April 2026) |
+| **Platforms — content-prep only** | Dev.to (markdown export) · LinkedIn (API restricted) · **知乎 / 小红书** (manual paste, never auto — see [Chinese platform strategy](#chinese-platform-strategy-2026-reality)) |
+| **Workflow** | HITL approval queue (Obsidian-friendly markdown). 6 GitHub Actions: `daily.yml` (commit-driven + trends drafts), `publish.yml` (push to approved/), `scheduled.yml` (hourly publish-due), `test.yml`, `lint.yml`, `mcp-install-check.yml`. **Multi-project YAML config** (one cron, N projects). PyPI Trusted Publishing via OIDC. |
+| **Cross-agent (SFOS interop)** | Reflexions, skill promotions, and ICPL pairs are mirrored to `~/.orallexa-marketing-agent/*.jsonl` and `~/.solo-founder-os/skills/` so `solo-founder-os` v0.19+ tools (sfos-evolver, sfos-retro, sfos-eval) see marketing-agent's data. Bandit + autopsy promoted to SFOS core for the rest of the stack. |
+| **Automation** | Local launchd jobs: **daily 06:30 EDT** auto-pulls X engagement → updates bandit posterior. **Sunday 09:00** runs `sfos-retro` cross-agent digest. PH-day reminder + trend-perf retro launchd plists ship as scripts. |
+| **Integrations** | **MCP server** (`marketing-agent-mcp` for Claude Code / Desktop / Cursor / Zed) · **Claude Skill** (`skills/marketing-voice/`) · **A2A agent card** (`agent_card.json`) · VibeXForge event push · DSPy signatures framework |
+| **Distribution** | **PyPI** (`pip install orallexa-marketing-agent[mcp]`) · **Dockerfile + docker-compose** · CI matrix Python 3.11/3.12 · pytest-cov 70% floor · Codecov |
 
-CLI: `generate · post · queue · history · cost · plan · bandit · best-time · replies · engage` — 10 subcommands.
+**CLI (17 subcommands):** `generate · post · history · cost · queue · plan · schedule · ui · trends · trends-to-drafts · autopsy · skills · image · bandit · best-time · replies · engage`
 
-Roadmap:
-- [x] **v0.1** — scaffold, X / Reddit / LinkedIn stubs
-- [x] **v0.2** — memory + threads + queue + cost + Bluesky + Mastodon + CLI
-- [x] **v0.3** — reply suggester + engagement tracker + launch planner + 知乎/小红书 stubs + VibeXForge + image prompts
-- [x] **v0.4** — variant bandit · best-time-to-post · MCP server · 60/90-day plans · PH-launch-relative timing
-- [x] **v0.5** — critic gate + semantic dedup + retries + structured logging + GitHub release webhook + CI
-- [x] **v0.6** — supervisor (Drafter→Critic→Rewriter) + reflexion memory + hybrid retrieval (BM25+dense) + Claude Agent SDK adapter + prompt caching + multi-project config + Skill + A2A card + Docker
-- [x] **v0.7** — real image generation (Pollinations / Flux schnell, free, no key) · X media upload (auto-attach generated image to tweets) · `image` CLI subcommand · `Post.image_url` field
-- [x] **v0.8** — Phoenix / OTel observability (opt-in `[observability]` extras) · DSPy signatures framework (4 typed Signatures, compilation hook ready) · PyPI build artifact + `publish-pypi.yml` workflow · `py.typed` marker
-- [x] **v0.9** — hardening sprint: reply_suggester 0%→81% coverage · X/Bluesky/Mastodon image upload mock tests · MCP tool integration tests · BM25 single-doc fix · shared critic min-score constant · CHANGELOG.md · CI floor 60%→70%
-- [x] **v0.10** — Streamlit queue UI (`marketing-agent ui`, browser/phone-friendly) · scheduled posting (`scheduled_for` frontmatter + hourly cron + `marketing-agent schedule --best-time`) · CLI smoke tests (cli.py 0% → covered) · 198 tests, 76% coverage
-- [x] **v0.11** — **ICPL** (in-context preference learning from edits, no fine-tune needed) · **multi-LLM ensemble critic** via LiteLLM (Claude + GPT-5 + Gemini majority vote) · **self-consistency-3** for short-form supervisor · **Bluesky firehose listener** (free real-time engagement, vs X's $42k/yr Enterprise webhook) · 228 tests, 75% coverage
-- [x] **v0.12** — **Edge inference fallback** (Cloudflare Workers AI Llama 3.3 as cheap drafter, ~80% cost reduction vs Claude) · **Voyager-style auto-skill promotion** (top-quartile posts → `skills/learned/*.md`) · **A/B variants report** (per-platform winner with 95% credible intervals) · **Failure post-mortem** (`marketing-agent autopsy --post-id X` heuristic explanation) · 269 tests, 76% coverage
-- [ ] **v0.13** — DSPy compilation against engagement history · Computer Use 知乎/小红书 publishing · X engagement webhook (deferred — Enterprise tier $$) · PyPI auto-publish on tag
-- [ ] **v1.0** — open-source launch · YC application
+**Roadmap (recent + upcoming):**
+- [x] **v0.10-0.12** — Streamlit UI · scheduled posting · ICPL · LiteLLM ensemble critic · Bluesky firehose · Cloudflare edge inference · Voyager skill promotion · A/B variants report · autopsy
+- [x] **v0.13-0.14** — solo-founder-os AnthropicClient migration · cross-provider usage logging
+- [x] **v0.15-0.16** — Trends module (GitHub/HN/Reddit) · Threads (Meta) auto-publish
+- [x] **v0.17.x** — `trends_to_drafts` proactive loop · per-project trend dedup · daily LLM budget cap · daily issue body breakdown
+- [x] **v0.18.x** — VibeX top-of-feed → TrendItem source (`$0` Supabase) · cross-agent SFOS sinks (reflections / skills / preference) · bandit + autopsy promoted to `solo-founder-os` core · LLM-mode variant_key tagging · trends 280-char overflow 3-layer fix · daily engagement → bandit launchd · weekly sfos-retro launchd · PyPI live (Trusted Publishing OIDC)
+- [ ] **v0.19** — DSPy compilation against engagement history · MCP marketplace listing (post-PH) · cross-agent bandit data exchange
+- [ ] **v1.0** — public OSS launch · YC application
 
 ---
 
@@ -143,23 +138,47 @@ Per Q2 2026 anti-bot research, the agent **deliberately does not auto-publish** 
 ```
 orallexa-marketing-agent/
 ├── marketing_agent/
-│   ├── types.py             Pydantic models for Project, Post, Platform, Engagement
-│   ├── content/             Content generation + image prompt suggester
-│   ├── platforms/           8 adapters (X, Reddit, LinkedIn, Dev.to, Bluesky, Mastodon, 知乎, 小红书)
-│   ├── integrations/        VibeXForge event push
-│   ├── orchestrator.py      High-level: project → posts → distribute
-│   ├── memory.py            SQLite dedup
-│   ├── queue.py             Markdown-file approval queue (Obsidian-friendly)
-│   ├── threads.py           Auto-split long posts into threads
-│   ├── cost.py              Per-call Anthropic + X cost tracking
-│   ├── engagement.py        Pull X metrics, rank top posts
-│   ├── reply_suggester.py   Scan handles → filter → draft replies → queue
-│   ├── strategy.py          LaunchPlan generator (template + LLM)
-│   └── cli.py               argparse CLI: generate/post/queue/history/cost/plan/replies/engage
-├── examples/                Offline demos (no API keys needed)
-├── scripts/daily_post.py    Cron-friendly: GitHub commits → posts
-├── .github/workflows/       Daily auto-post Action
-└── tests/                   49 tests, all offline
+│   ├── types.py                  Pydantic models — Project, Post, Platform, Engagement
+│   ├── content/                  Generator (HYBRID = edge → Anthropic → template) + templates + images
+│   ├── platforms/                9 adapters (X, Reddit, LinkedIn, Dev.to, Bluesky, Mastodon, Threads, 知乎, 小红书)
+│   ├── llm/                      anthropic_compat shim · edge_provider (Cloudflare Workers AI)
+│   ├── listeners/                Bluesky firehose (free real-time engagement)
+│   ├── integrations/             VibeXForge event push
+│   ├── orchestrator.py           High-level: project → posts → distribute
+│   ├── supervisor.py             Drafter → Critic → Rewriter (Reflexion-lite)
+│   ├── critic.py · ensemble_critic.py    Heuristic + LLM + multi-LLM majority vote
+│   ├── reflexion_memory.py       Cross-session critic findings (+SFOS JSONL sink)
+│   ├── preference.py             ICPL store (+SFOS JSONL mirror)
+│   ├── skill_promoter.py         Voyager auto-skill (+SFOS shared dir mirror)
+│   ├── bandit.py                 Thompson Beta-conjugate over X variants
+│   ├── trends.py                 GitHub / HN / Reddit aggregator (stdlib HTTP)
+│   ├── trends_to_drafts.py       Proactive loop: trends → multi-platform drafts
+│   ├── trend_memory.py           Per-(project, URL) cooldown
+│   ├── vibex_trends.py           Self-source from your platform's top-of-feed
+│   ├── budget.py                 Daily LLM-spend soft cap
+│   ├── autopsy.py                Engagement-vs-peers post-mortem
+│   ├── multiproject.py           marketing-agent.yml + trends.yml parser
+│   ├── memory.py · queue.py · threads.py · schedule.py    Core HITL plumbing
+│   ├── cost.py · engagement.py · best_time.py             Analytics
+│   ├── reply_suggester.py        Timeline scan → reply drafts → queue
+│   ├── strategy.py               30/60/90-day LaunchPlan generator
+│   ├── mcp_server.py             7-tool MCP server for Claude Code / Desktop
+│   ├── web_ui.py                 Streamlit queue UI (`marketing-agent ui`)
+│   ├── observability.py          Phoenix / OTel tracing (opt-in)
+│   ├── dspy_signatures.py        4 typed Signatures, compile hook ready
+│   └── cli.py                    argparse — 17 subcommands
+├── examples/                     Offline demos (no API keys needed)
+├── scripts/
+│   ├── daily_post.py             Cron entry: commit-driven + trends drafts
+│   ├── trend_perf_report.py      Compare trend-anchored vs commit-driven engagement
+│   ├── reject_today_cron.sh      Bulk-reject pending drafts by date
+│   ├── run_daily_engagement.sh   launchd: auto-pull X engagement + feed bandit
+│   ├── run_ph_day_reminder.sh    launchd: PH-day manual-paste reminder
+│   └── run_trend_perf_report.sh  launchd: weekly trend-perf retro
+├── .github/workflows/            6 actions: daily / publish / scheduled / test / lint / mcp-install-check
+├── docs/                         vibex-launch material · mcp-listing kit · future/saas-design
+├── skills/marketing-voice/       Curated voice guide (loadable Claude Skill)
+└── tests/                        408 tests passing, ~77% coverage, all offline
 ```
 
 ---

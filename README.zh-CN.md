@@ -2,8 +2,9 @@
 
 [English](README.md) | **中文**
 
-[![Version](https://img.shields.io/badge/version-0.18.5-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
-[![Tests](https://img.shields.io/badge/tests-405%20passing-brightgreen.svg)](#)
+[![Version](https://img.shields.io/badge/version-0.18.6-blue.svg)](https://github.com/alex-jb/orallexa-marketing-agent/releases)
+[![Tests](https://img.shields.io/badge/tests-408%20passing-brightgreen.svg)](#)
+[![PyPI](https://img.shields.io/pypi/v/orallexa-marketing-agent.svg)](https://pypi.org/project/orallexa-marketing-agent/)
 [![Coverage](https://img.shields.io/badge/coverage-77%25-brightgreen.svg)](#)
 [![CI](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml/badge.svg)](https://github.com/alex-jb/orallexa-marketing-agent/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](#)
@@ -71,38 +72,36 @@ make demo      # 跑 examples/generic_demo.py — 全离线，模板模式
 
 ---
 
-## 当前状态 — v0.6.0
+## 当前状态 — v0.18.6（PyPI 已上线、bandit 反馈闭环已自动化）
+
+408 tests passing · 77% coverage · CI Python 3.11 / 3.12 全绿 · PyPI:`pip install "orallexa-marketing-agent[mcp]"`
 
 | 层 | 能力 |
 |---|---|
-| **Agent 内核** | **Drafter → Critic → Rewriter supervisor**（Reflexion-lite，无需 LangGraph 依赖）· **持久化 reflexion memory**（跨 session 学习历史失败模式）· **Claude Agent SDK 适配器**（装了就用官方 SDK 0.1.68+，否则降级）· **Prompt caching 标记**（key 配上后 daily cron 省 ~80% 输入 token） |
-| **内容生成** | Claude Sonnet 4.6 / Haiku 4.5 或模板降级 · 自动拆 thread · 配图 prompt suggester · 每平台 N 个风格变体 |
-| **支持平台 — 自动发布** | X (OAuth 1.0a) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · **Threads（Meta Graph API，2026 年 4 月正式开放，每用户 24h 250 条）** |
-| **支持平台 — 内容准备** | Dev.to (markdown 导出，手动粘) · LinkedIn (API 限制严) · **知乎 / 小红书（手动发，永远不自动 — 见[中文平台策略](#中文平台策略--2026-反爬现实)）** |
-| **质量门** | Heuristic + LLM critic 自动拒废稿（hype 词、字数超限、全大写、hashtag 灌水）· **混合检索去重**（60% 稠密 + 40% BM25，比纯稠密 +17pp MRR） |
-| **可靠性** | 平台 adapter 指数退避重试（429 / 5xx / 网络抖动） · 结构化 JSON 日志（Langfuse / OTel 兼容） |
-| **工作流** | HITL 审批 queue · 4 个 GitHub Actions：`daily.yml` · `release-announce.yml` · `publish.yml` · `test.yml` · **多项目 YAML 配置** |
-| **策略** | 30/60/90 天 launch plan（Product-Hunt-相对时序）· reply-draft suggester · 变体 bandit（Thompson 采样）· 最佳发帖时间（hour-of-week 经验 CDF） |
-| **集成** | VibeXForge 事件回推 · **MCP server**（Claude Code / Desktop / Cursor / Zed）· **Claude Skill**（`skills/marketing-voice/`）· **A2A agent card**（被其他 agent 发现） |
-| **分发** | **Dockerfile + docker-compose**（一行自托管） · CI Python 3.11/3.12 · pytest-cov 60%+ |
+| **生成器** | HYBRID = Cloudflare Workers AI 边缘层（Llama 3.3,~$0.011/1M tokens）→ Anthropic Sonnet 4.6 fallback。两者都挂会降级模板(并打 warning,杜绝静默失败)。Prompt caching 让 daily cron 输入 token 成本省 ~80% |
+| **质量门** | Heuristic + LLM critic 自动拒废稿(hype 词/字数/hashtag 灌水)。**混合检索去重**(60% 稠密 + 40% BM25,比纯稠密 +17pp MRR) — 永不重发释义。**X 280-char 三层防御**(小 hook + 严 prompt + LLM-后 retry/截断) |
+| **自我进化栈** | **Variant bandit**(Thompson Beta-conjugate emoji/question/stat-led;LLM 调用前选 hint,1 次 LLM call/平台)。**Reflexion memory**(跨 session critic 模式)。**ICPL 偏好库**(从人工编辑提取 5-shot)。**Voyager 自动技能晋升**(top-quartile 帖 → `skills/learned/*.md` 同时镜像 `~/.solo-founder-os/skills/<slug>.md` 给跨 agent 用) |
+| **主动循环** | **Trends 模块** 扫 GitHub / HN / Reddit(免费,纯 stdlib HTTP)+ **VibeX top-of-feed source**(自家平台热门 project,通过 Supabase Management API 拉,$0)。**`trends_to_drafts`** 把 top N 转成多平台 drafts。**(project, URL) 冷却**(默认 7 天)防止连续 4 天写同一条 hot 故事 |
+| **成本守门** | **`MARKETING_AGENT_DAILY_BUDGET_USD`** 软上限(读 `~/.marketing-agent/usage.jsonl`、按 `cost.PRICES` 计价、当日 UTC 累计;超额跳过主动 pass)。跨 provider usage 日志统一写入一个 JSONL,cost-audit-agent 直接读 |
+| **平台 — 自动发布** | X (OAuth 1.0a + Bearer 用于读) · Reddit (PRAW) · Bluesky (AT Protocol) · Mastodon (REST) · Threads (Meta Graph API,2026 年 4 月正式开放) |
+| **平台 — 内容准备** | Dev.to (markdown 导出) · LinkedIn (API 限制严) · **知乎 / 小红书**(手动粘,永远不自动 — 见[中文平台策略](#中文平台策略--2026-反爬现实)) |
+| **工作流** | HITL 审批 queue(Obsidian 友好 markdown)。6 个 GitHub Actions:`daily.yml`(commit + trends drafts)、`publish.yml`(push 触发发布)、`scheduled.yml`(每小时发已 due 的)、`test.yml`、`lint.yml`、`mcp-install-check.yml`。**多项目 YAML 配置**(一个 cron N 个项目)。PyPI Trusted Publishing OIDC |
+| **跨 agent 互通(SFOS interop)** | Reflexions、技能晋升、ICPL 对都镜像到 `~/.orallexa-marketing-agent/*.jsonl` 和 `~/.solo-founder-os/skills/`,让 `solo-founder-os` v0.19+ 工具(sfos-evolver、sfos-retro、sfos-eval)看见 marketing-agent 数据。Bandit + autopsy 已晋升到 SFOS core 给整个 stack 共用 |
+| **自动化** | 本地 launchd:**每天 06:30 EDT** 自动拉 X engagement → 更新 bandit posterior。**周日 09:00** 跑 `sfos-retro` 跨 agent 周报。PH-day 提醒 + trend-perf 复盘 plist 也在 scripts/ 里 |
+| **集成** | **MCP server**(`marketing-agent-mcp` 给 Claude Code / Desktop / Cursor / Zed)· **Claude Skill**(`skills/marketing-voice/`)· **A2A agent card**(`agent_card.json`)· VibeXForge 事件回推 · DSPy signatures 框架 |
+| **分发** | **PyPI**(`pip install orallexa-marketing-agent[mcp]`)· **Dockerfile + docker-compose** · CI matrix Python 3.11/3.12 · pytest-cov 70% floor · Codecov |
 
-CLI 子命令（10 个）：`generate · post · queue · history · cost · plan · bandit · best-time · replies · engage`
+**CLI(17 个子命令):** `generate · post · history · cost · queue · plan · schedule · ui · trends · trends-to-drafts · autopsy · skills · image · bandit · best-time · replies · engage`
 
-Roadmap：
+**Roadmap(近期 + 下一步):**
 
-- [x] **v0.1** — 脚手架，X / Reddit / LinkedIn stub
-- [x] **v0.2** — memory + threads + queue + cost + Bluesky + Mastodon + CLI
-- [x] **v0.3** — reply suggester + engagement tracker + launch planner + 知乎/小红书 stub + VibeXForge + 配图 prompt
-- [x] **v0.4** — 变体 bandit · 最佳发帖时间 · MCP server · 60/90 天 plan · PH-相对时序
-- [x] **v0.5** — critic gate + 语义去重 + 重试 + 结构化日志 + GitHub release webhook + CI
-- [x] **v0.6** — supervisor (Drafter→Critic→Rewriter) + reflexion memory + 混合检索 (BM25+稠密) + Claude Agent SDK 适配器 + prompt caching + 多项目 config + Skill + A2A card + Docker
-- [x] **v0.7** — 真实配图生成（Pollinations / Flux schnell，免费、无 key）· X 媒体上传（自动给推文挂图）· `image` CLI 子命令 · `Post.image_url` 字段
-- [x] **v0.8** — Phoenix / OTel 可观测性（opt-in `[observability]` extras）· DSPy signatures 框架（4 个 typed Signature，compile 钩子已就位）· PyPI 构建产物 + `publish-pypi.yml` workflow · `py.typed` 标记
-- [x] **v0.9** — 加固 sprint：reply_suggester 覆盖率 0% → 81% · X/Bluesky/Mastodon 配图上传 mock 测试 · MCP 工具集成测试 · BM25 单 doc 边界修复 · critic min-score 单点常量化 · CHANGELOG.md · CI floor 60% → 70%
-- [x] **v0.10** — Streamlit queue UI（`marketing-agent ui`，浏览器/手机都能用）· 定时发布（`scheduled_for` frontmatter + 每小时 cron + `marketing-agent schedule --best-time`）· CLI smoke tests（cli.py 0% → 已覆盖）· 198 tests, 76% coverage
-- [x] **v0.11** — **ICPL**（in-context 偏好学习，编辑信号当 few-shot，免训练）· **多 LLM ensemble critic**（LiteLLM 把 Claude + GPT-5 + Gemini 串起来 majority vote）· **self-consistency-3** 短文案 supervisor 加固 · **Bluesky firehose 监听**（免费实时 engagement，对比 X Enterprise $42k/yr 才有 webhook）· 228 tests, 75% coverage
-- [x] **v0.12** — **Edge inference fallback**（Cloudflare Workers AI Llama 3.3 当 cheap drafter，比 Claude 省 ~80% 成本）· **Voyager 风格 auto-skill 自动晋升**（top-quartile 高分帖自动写入 `skills/learned/*.md`）· **A/B variants report**（每平台 winner + 95% 可信区间）· **Failure post-mortem**（`marketing-agent autopsy --post-id X` heuristic 解释为啥挂了）· 269 tests, 76% coverage
-- [ ] **v0.13** — DSPy 用 engagement 历史编译 · Bilibili 视频上传（官方开放平台）· 中文平台**只读监听**（趋势抓取、竞品笔记分析）· X engagement webhook（延期 — Enterprise tier $$）· PyPI tag-触发自动发布
+- [x] **v0.10-0.12** — Streamlit UI · 定时发布 · ICPL · LiteLLM ensemble critic · Bluesky firehose · Cloudflare 边缘推理 · Voyager 技能晋升 · A/B 报告 · autopsy
+- [x] **v0.13-0.14** — solo-founder-os AnthropicClient 迁移 · 跨 provider usage 日志
+- [x] **v0.15-0.16** — Trends 模块(GitHub/HN/Reddit)· Threads(Meta)自动发布
+- [x] **v0.17.x** — `trends_to_drafts` 主动循环 · 项目级 trend 去重 · 每日 LLM 预算 · 每日 issue body 拆分
+- [x] **v0.18.x** — VibeX top-of-feed → TrendItem source(`$0` Supabase)· 跨 agent SFOS sinks(reflections / skills / preference)· bandit + autopsy 晋升到 `solo-founder-os` core · LLM 路径 variant_key 标签 · trends 280-char 三层修复 · 每日 engagement → bandit launchd · 周 sfos-retro launchd · PyPI 上线(Trusted Publishing OIDC)
+- [ ] **v0.19** — DSPy 用 engagement 历史编译 · MCP marketplace 上架(PH 后)· 跨 agent bandit 数据交换
+- [ ] **v1.0** — 公开 OSS launch · YC 申请
 
 ---
 
