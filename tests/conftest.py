@@ -5,7 +5,15 @@ Prevent any test from accidentally writing to the user's real
 etc.). Every test starts with a per-test temp DB + queue dir.
 """
 from __future__ import annotations
+import os
+
 import pytest
+
+# Belt-and-suspenders: even though per-test fixtures redirect paths,
+# any nested call into solo_founder_os.log_outcome / record_example /
+# log_edit that bypasses our env vars must NOT write to the developer's
+# real home dirs. SFOS-side primitive shipped in solo-founder-os v0.20.3.
+os.environ.setdefault("SFOS_TEST_MODE", "1")
 
 
 @pytest.fixture(autouse=True)
