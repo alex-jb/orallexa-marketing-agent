@@ -8,6 +8,27 @@ from __future__ import annotations
 from marketing_agent.types import Platform, Post, Project
 
 
+def _truncate(s: str, limit: int) -> str:
+    """Cap `s` at `limit` chars, breaking at the last whitespace before
+    the limit instead of mid-word. Adds an ellipsis when truncated.
+
+    Why: SFOS launch posts had a real bullet "10 agents covered by
+    sfos-retro: marketing / build-quality / customer-discovery / funnel
+    / vc-outreach / cost-audit / bilingual-sync / customer-support /
+    customer-outreach / shared-lib" rendered as "...bilingual-sync /
+    custo" because the cap was a hard slice. Fixed at the helper layer
+    so every platform template gets the same word-boundary behavior.
+    """
+    if len(s) <= limit:
+        return s
+    head = s[: limit - 1]
+    cut = head.rfind(" ")
+    if cut <= 0 or cut < limit - 30:
+        # No good word boundary nearby — fall back to hard cap with ellipsis
+        return head + "…"
+    return head[:cut].rstrip(",;:/-") + "…"
+
+
 def render_x(project: Project, *, variant: str = "emoji-led") -> Post:
     """X / Twitter — short, attention-grabbing, link in body.
 
@@ -33,7 +54,7 @@ def render_x(project: Project, *, variant: str = "emoji-led") -> Post:
     parts = [opener]
     if project.recent_changes:
         latest = project.recent_changes[0]
-        parts.append(f"Latest: {latest[:120]}")
+        parts.append(f"Latest: {_truncate(latest, 200)}")
     if project.github_url:
         parts.append(project.github_url)
     body = "\n\n".join(parts)
@@ -61,7 +82,8 @@ def render_reddit(project: Project, subreddit: str | None = None) -> Post:
     if project.description:
         paragraphs.append(project.description[:500])
     if project.recent_changes:
-        bullets = "\n".join(f"- {c[:120]}" for c in project.recent_changes[:5])
+        bullets = "\n".join(f"- {_truncate(c, 200)}"
+                              for c in project.recent_changes[:5])
         paragraphs.append(f"Recent changes:\n{bullets}")
     links = []
     if project.github_url:
@@ -84,7 +106,8 @@ def render_linkedin(project: Project) -> Post:
     if project.recent_changes:
         parts.append(
             "Recent work:\n"
-            + "\n".join(f"• {c[:140]}" for c in project.recent_changes[:5])
+            + "\n".join(f"• {_truncate(c, 200)}"
+                         for c in project.recent_changes[:5])
         )
     if project.github_url:
         parts.append(f"Source: {project.github_url}")
@@ -103,7 +126,8 @@ def render_dev_to(project: Project) -> Post:
     ]
     if project.recent_changes:
         parts.append("## Recently shipped\n\n"
-                     + "\n".join(f"- {c[:140]}" for c in project.recent_changes[:5]))
+                     + "\n".join(f"- {_truncate(c, 200)}"
+                                  for c in project.recent_changes[:5]))
     if project.github_url:
         parts.append(f"## Try it\n\n```bash\ngit clone {project.github_url}\n```")
     return Post(platform=Platform.DEV_TO, title=title, body="\n\n".join(parts)).with_count()

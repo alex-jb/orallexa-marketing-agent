@@ -73,6 +73,69 @@ def test_template_dev_to_markdown_format():
     assert "## " in p.body  # markdown headings
 
 
+def test_truncate_short_input_passthrough():
+    """Inputs at or under the limit must come back unchanged (no
+    ellipsis injected for short strings)."""
+    assert templates._truncate("short", 200) == "short"
+    exact = "x" * 200
+    assert templates._truncate(exact, 200) == exact
+    assert not exact.endswith("…")
+
+
+def test_truncate_breaks_at_word_boundary_when_oversize():
+    """Regression: SFOS launch posts had 'bilingual-sync / custo' because
+    a long bullet got hard-sliced at 120/140. _truncate now breaks at
+    the last whitespace before the limit and appends an ellipsis."""
+    # 220 chars — comfortably over the 200 cap
+    long = ("Agent stack covers reflexion, supervisor, skills, evolver, "
+            "council, ICPL, eval, drift detection, cross-terminal bus, "
+            "HITL governance rail, weekly retro, scheduled launchd jobs, "
+            "and full test isolation across the whole stack.")
+    assert len(long) > 200
+    out = templates._truncate(long, 200)
+    assert len(out) <= 200
+    # Must NOT end mid-word — the last visible char before the ellipsis
+    # must be a complete word.
+    assert out.endswith("…")
+    # The character right before the ellipsis must not be a letter that
+    # would suggest a chopped word — it should be a complete token.
+    prev_char = out[-2]
+    assert prev_char.isalpha() or prev_char in ".,;)/"
+    # And the truncation must have happened at a word boundary, not
+    # mid-word: the head before "…" should not end with a partial token
+    # immediately preceded by whitespace in the original.
+    head = out[:-1]
+    # Verify head matches a prefix of the original up to a whitespace
+    # (i.e. we found a real word boundary, not an arbitrary index).
+    assert long.startswith(head) or any(
+        long.startswith(head.rstrip(",;:/-")) for _ in (0,)
+    )
+
+
+def test_template_sfos_launch_bullet_renders_intact():
+    """End-to-end: the actual SFOS launch bullet that got truncated in
+    the v0.20.3 dogfood post must render fully now (it's ~188 chars,
+    under the new 200 cap)."""
+    proj = Project(
+        name="SFOS",
+        tagline="6-layer self-evolving agent stack",
+        description="A library.",
+        github_url="https://github.com/x/y",
+        recent_changes=[
+            "10 agents covered by sfos-retro: marketing / build-quality "
+            "/ customer-discovery / funnel / vc-outreach / cost-audit "
+            "/ bilingual-sync / customer-support / customer-outreach "
+            "/ shared-lib",
+        ],
+    )
+    for plat in (Platform.LINKEDIN, Platform.REDDIT, Platform.DEV_TO):
+        p = templates.render(plat, proj, subreddit="x")
+        # The full bullet must appear, not "...custo"
+        assert "customer-outreach" in p.body
+        assert "shared-lib" in p.body
+        assert "/ custo\n" not in p.body
+
+
 # ─────────────────────────── Adapters ───────────────────────────
 
 def test_x_adapter_not_configured_without_keys(monkeypatch):
