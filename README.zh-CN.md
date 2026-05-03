@@ -239,3 +239,20 @@ MIT —— 用它，fork 它，发出去。
 ---
 
 *作者一边等他第一个 100 GitHub stars 一边手搓出来的。希望你不用等那么久。*
+---
+
+## 🧩 [Solo Founder OS](https://github.com/alex-jb/solo-founder-os) agent stack 的一员
+
+一组共享 `solo-founder-os` 底座(Source/MetricSample 契约、HITL queue、AnthropicClient、notifiers、scheduler)的 MIT-licensed agents,逐渐在长。每个独立可用,组合起来覆盖单干创始人的全工作流。
+
+| Agent | 干啥 |
+|---|---|
+| [solo-founder-os](https://github.com/alex-jb/solo-founder-os) | 共享底座(Source/MetricSample、AnthropicClient、HITL queue、notifiers、sfos-doctor / sfos-evolver / sfos-eval / sfos-retro / sfos-bus / sfos-inbox) |
+| [build-quality-agent](https://github.com/alex-jb/build-quality-agent) | Pre-push diff 审查 + 本地 build runner — 在 push 前拦住会挂 CI 的改动 |
+| [customer-discovery-agent](https://github.com/alex-jb/customer-discovery-agent) | Reddit 痛点抓取 + Claude 聚类做产品验证 |
+| [funnel-analytics-agent](https://github.com/alex-jb/funnel-analytics-agent) | 每日 brief + 实时告警,跨 9 个 source(Vercel、GitHub、Supabase 等) |
+| [vc-outreach-agent](https://github.com/alex-jb/vc-outreach-agent) | 投资人 cold email 起草 + HITL queue + SMTP 发送 |
+| [cost-audit-agent](https://github.com/alex-jb/cost-audit-agent) | 月度账单审计跨 6 个 provider,标注美元 waste |
+| [bilingual-content-sync-agent](https://github.com/alex-jb/bilingual-content-sync-agent) | EN ⇄ ZH i18n diff + Claude 翻译 + HITL apply |
+
+*每个 agent 自己的行在它自己 README 里被去掉。挑能解决你真问题的装。*

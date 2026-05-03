@@ -264,3 +264,20 @@ MIT — use it, fork it, ship it.
 ---
 
 *Hand-built by Alex while waiting for his first 100 GitHub stars. Hopefully you don't need to wait that long.*
+---
+
+## 🧩 Part of the [Solo Founder OS](https://github.com/alex-jb/solo-founder-os) stack
+
+A growing collection of MIT-licensed agents that share `solo-founder-os` as their base — Source/MetricSample contracts, HITL queue, AnthropicClient, notifiers, scheduler. Each agent is independently useful; together they cover the full solo-founder workflow.
+
+| Agent | What it does |
+|---|---|
+| [solo-founder-os](https://github.com/alex-jb/solo-founder-os) | The shared base lib (Source/MetricSample, AnthropicClient, HITL queue, notifiers, sfos-doctor / sfos-evolver / sfos-eval / sfos-retro / sfos-bus / sfos-inbox) |
+| [build-quality-agent](https://github.com/alex-jb/build-quality-agent) | Pre-push diff reviewer + local build runner — catches CI-killing changes before they ship |
+| [customer-discovery-agent](https://github.com/alex-jb/customer-discovery-agent) | Reddit pain-point scraper + Claude clustering for product validation |
+| [funnel-analytics-agent](https://github.com/alex-jb/funnel-analytics-agent) | Daily brief + real-time alerts across 9 sources (Vercel, GitHub, Supabase, etc.) |
+| [vc-outreach-agent](https://github.com/alex-jb/vc-outreach-agent) | Investor cold email drafter with HITL queue + SMTP sender |
+| [cost-audit-agent](https://github.com/alex-jb/cost-audit-agent) | Monthly bill audit across 6 providers with dollar-tagged waste findings |
+| [bilingual-content-sync-agent](https://github.com/alex-jb/bilingual-content-sync-agent) | EN ⇄ ZH i18n diff + Claude translate + HITL apply |
+
+*Each agent's own row is omitted from its README. Install whichever solve real problems for you.*
