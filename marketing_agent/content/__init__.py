@@ -1,4 +1,4 @@
 """Content generation — turns a Project into Posts for each platform."""
-from marketing_agent.content.generator import generate_posts
+from marketing_agent.content.generator import generate_posts, generate_variants
 
-__all__ = ["generate_posts"]
+__all__ = ["generate_posts", "generate_variants"]

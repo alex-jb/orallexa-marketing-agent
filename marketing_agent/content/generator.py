@@ -73,6 +73,126 @@ _LLM_VARIANT_POOLS: dict[Platform, list[str]] = {
 }
 
 
+def generate_variants(
+    project: Project,
+    platform: Platform,
+    *,
+    n: int = 2,
+    subreddit: Optional[str] = None,
+) -> list[Post]:
+    """(v0.20.0) Generate top-N predicted variants for ONE platform via LLM.
+
+    The orchestrator's `generate_posts()` contract is "one Post per platform",
+    which is correct for cron + automated paths. This function is the HITL
+    multi-pick companion: when a creator wants to SEE 2-3 variants and pick,
+    `generate_variants()` uses `VariantBandit.predict_top_k()` to choose
+    which N of the platform's pool to actually LLM-generate (not all),
+    then tags each returned Post with `predicted_mean` and
+    `predicted_n_pulls` so the HITL UI can show "x:stat-led: 0.65 (n=18)".
+
+    Cost shape:
+      - n=1: same as `generate_posts(..., n_variants=1)` — 1 LLM call.
+      - n=2 with pool size 3: top-2 of 3 → 2 LLM calls (saves vs always-3).
+      - n >= pool size: predict_top_k caps at pool length; you can't
+        generate more variants than the pool has unique style hints.
+      - Platform with no LLM pool (e.g. LinkedIn): always 1 LLM call,
+        returned as `[post]` regardless of n.
+
+    Falls back to template path when ANTHROPIC_API_KEY is unset or any
+    LLM call fails — same hybrid behavior as `generate_posts()`. Returned
+    list is sorted by `predicted_mean` descending, ties broken on lower
+    `predicted_n_pulls` (less-tested → break tie in favor of exploration).
+
+    Why this exists: see `~/Desktop/Interview-Prep/Projects/alex-brain/
+    research/2026-05-08-world-models-takeaway.md` — JEPA principle of
+    surfacing structural predictions instead of burying them. v0.19.0
+    added the `predict()` API; v0.20.0 wires it through the actual
+    generation path.
+    """
+    if n <= 1:
+        # Degenerate to the single-variant fast path.
+        return generate_posts(project, [platform], subreddit=subreddit,
+                                n_variants=1)
+
+    pool = _LLM_VARIANT_POOLS.get(platform)
+    if not pool:
+        # Platform has no variant pool — nothing to rank, return single.
+        return generate_posts(project, [platform], subreddit=subreddit,
+                                n_variants=1)
+
+    # Clamp n to pool size — can't generate more unique variants than exist.
+    n = min(n, len(pool))
+
+    keys = [f"{platform.value}:{v}" for v in pool]
+    posts: list[Post] = []
+    predictions: dict = {}
+    try:
+        from marketing_agent.bandit import VariantBandit
+        bandit = VariantBandit()
+        top_k_keys = bandit.predict_top_k(keys, k=n)
+        # Pull full prediction stats for the chosen keys to attach to posts.
+        predictions = {d["variant_key"]: d for d in bandit.predict(top_k_keys)}
+    except Exception as e:
+        log.warning("bandit predict failed (%s: %s) — falling back to "
+                    "first-N pool entries without prediction stats",
+                    type(e).__name__, e)
+        top_k_keys = keys[:n]
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        # Template path — render N template variants and tag the first N
+        # with predict() metadata when available.
+        template_variants = templates.render_variants(
+            platform, project, n=n, subreddit=subreddit,
+        )
+        for post in template_variants[:n]:
+            pred = predictions.get(post.variant_key or "", {})
+            post = post.model_copy(update={
+                "predicted_mean": pred.get("mean"),
+                "predicted_n_pulls": pred.get("n_pulls"),
+            })
+            posts.append(post)
+        return _sort_by_prediction(posts)
+
+    # LLM path — one LLM call per top-k variant_key.
+    for key in top_k_keys:
+        variant = key.split(":", 1)[1] if ":" in key else key
+        try:
+            post = _generate_with_llm(project, platform, subreddit=subreddit,
+                                          variant_hint=variant)
+        except Exception as e:
+            log.warning("LLM generation failed for %s variant %s: %s — "
+                        "falling back to template for this variant",
+                        platform.value, variant, e)
+            template_variants = templates.render_variants(
+                platform, project, n=1, subreddit=subreddit,
+            )
+            post = template_variants[0] if template_variants else None
+            if post is None:
+                continue
+        # Make sure the post is tagged with the bandit-aware key, not
+        # just the bare variant the LLM might have stamped.
+        pred = predictions.get(key, {})
+        post = post.model_copy(update={
+            "variant_key": key,
+            "predicted_mean": pred.get("mean"),
+            "predicted_n_pulls": pred.get("n_pulls"),
+        })
+        posts.append(post)
+    return _sort_by_prediction(posts)
+
+
+def _sort_by_prediction(posts: list[Post]) -> list[Post]:
+    """Sort posts by predicted_mean desc; ties → lower predicted_n_pulls
+    first (favors exploration on similar-mean variants)."""
+    return sorted(
+        posts,
+        key=lambda p: (
+            -(p.predicted_mean if p.predicted_mean is not None else 0.5),
+            (p.predicted_n_pulls if p.predicted_n_pulls is not None else 0),
+        ),
+    )
+
+
 def _bandit_variant_hint(platform: Platform,
                             n_variants: int) -> Optional[str]:
     """Pick a stylistic variant via Thompson sampling for the LLM path.

@@ -2,6 +2,36 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.20.0] — 2026-05-08
+
+**Wires `bandit.predict_top_k()` through the actual generation path.** v0.19.0 added the predictor API (read-only); v0.20.0 makes the orchestrator use it.
+
+### Why
+The v0.19.0 CHANGELOG promised an "orchestrator pred-first mode" as a v0.20+ task. This release ships it. Continued application of the World Models research takeaway (`alex-brain/research/2026-05-08-world-models-takeaway.md`) — schema-over-pixels, surface structural predictions to HITL reviewers.
+
+### Added
+- **`generate_variants(project, platform, *, n=2, subreddit=None)`** in `marketing_agent.content` — companion to `generate_posts()`. Where `generate_posts()` returns one post per platform (cron path), `generate_variants()` returns top-N posts for ONE platform (HITL multi-pick path). Uses `VariantBandit.predict_top_k()` to pick which variants of the platform's pool to actually LLM-generate, ranked by posterior mean. Each returned `Post` carries `predicted_mean` and `predicted_n_pulls` so the HITL UI can render "x:stat-led: 0.65 (n=18)".
+- **`Post.predicted_mean`** + **`Post.predicted_n_pulls`** Pydantic fields. Optional, default `None`. Set by `generate_variants()`; left None for `generate_posts()` calls (back-compat unchanged).
+- Cost shape:
+  - `n=1` falls through to `generate_posts(..., n_variants=1)` — 1 LLM call.
+  - `n=2` on a 3-variant pool → top-2 of 3 → 2 LLM calls (saves 33% vs always-3).
+  - `n >= pool_size` clamps at pool size — can't generate more unique variants than the pool defines.
+  - Platform without LLM pool (LinkedIn etc) always returns `[post]` regardless of `n`.
+- Returned list sorted by `predicted_mean` desc; ties broken on **lower** `predicted_n_pulls` (favors exploration on similar-mean variants — the bandit equivalent of "don't waste cost on what we already know").
+- Falls back to template path on `ANTHROPIC_API_KEY` missing or any LLM call failing — same hybrid behavior as `generate_posts()`.
+
+### Tests
+- 417 → **426 tests passing** (+9 in `tests/test_generate_variants.py`):
+  returns-n / sorted-by-mean / attaches-n-pulls / n=1-fallback /
+  unsupported-platform / clamp-at-pool-size / template-path /
+  sort-handles-none / sort-ties-break-on-lower-pulls.
+- ruff clean.
+
+### Not changed (deferred to v0.21+)
+- No CLI subcommand exposing `generate_variants` directly yet (it's a Python API). Add `marketing-agent draft --variants 2 --platform x` in v0.21 if HITL-multi-pick gets uptake.
+- No context-aware bandit (per project category × stack). v0.21+.
+- Orchestrator `generate_posts(..., n_variants > 1)` LLM mode is unchanged for back-compat — still `_bandit_variant_hint`-style single-LLM-call. v0.20's multi-output path is the new `generate_variants()` function, not a behavioral change to the existing entry point.
+
 ## [0.19.0] — 2026-05-08
 
 **JEPA-flavored predictor layer on the variant bandit.** Surface posterior predictions BEFORE LLM commit, so HITL reviewers can see "x:stat-led: 0.65 ± 0.12 (n=18)" instead of trusting opaque Thompson samples.

@@ -74,6 +74,21 @@ class Post(BaseModel):
         description="Optional cover image URL. Pollinations / Gemini-generated. "
                     "X adapter downloads & uploads via media/upload.json before posting.",
     )
+    predicted_mean: Optional[float] = Field(
+        None,
+        description="(v0.20.0) Bandit-predicted reward mean for this variant_key "
+                    "at the time of generation, in [0,1]. Surfaces JEPA-flavored "
+                    "structural prediction to HITL reviewers — see "
+                    "alex-brain/research/2026-05-08-world-models-takeaway.md. "
+                    "None when n_pulls=0 or when the post wasn't generated through "
+                    "the predict-aware orchestrator path.",
+    )
+    predicted_n_pulls: Optional[int] = Field(
+        None,
+        description="(v0.20.0) Bandit n_pulls for this variant_key at generation "
+                    "time. < 3 = exploratory; 3-10 = warming up; 10+ = trusted. "
+                    "Lets HITL UIs flag 'this prediction is from low data'.",
+    )
 
     def with_count(self) -> "Post":
         """Return a copy with char_count populated."""
