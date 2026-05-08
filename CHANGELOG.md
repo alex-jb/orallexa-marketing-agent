@@ -2,6 +2,16 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.6] — 2026-05-08
+
+**Fix mid-word truncation in render_reddit / render_linkedin / render_dev_to + bidirectional cross-link with VibeXForge production.**
+
+### Fixes
+- **`_truncate` helper now breaks at word boundary** (commit e2cc0df). Hard-sliced bullets at 120/140 chars in render_reddit / render_linkedin / render_dev_to had been producing mid-word cuts like "bilingual-sync / custo" in the dogfooded SFOS launch posts. New helper finds the last whitespace before the cap and breaks there. Cap also bumped to 200 chars for these long-form platforms (X / Bluesky / Threads keep their tighter caps).
+
+### Documentation
+- **README EN + 中文 — added prominent "🚀 Live in production at vibexforge.com" callout** (commit 1cbe0d5). Right after the intro paragraph; concrete cross-link to `vibex/lib/draft-generator.ts` (the TypeScript port of `marketing_agent/content/generator.py`); two clear paths for first-time readers ("want hosted UI?" → vibexforge.com / "want SDK only?" → keep reading); `?ref=marketing-agent` attribution param so VibeXForge funnel-analytics-agent can attribute signups back to GitHub.
+
 ## [0.18.5] — 2026-05-02
 
 **Fix systematic 280-char overflow on trends drafts.**
