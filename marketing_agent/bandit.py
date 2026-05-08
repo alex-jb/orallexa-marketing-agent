@@ -122,6 +122,69 @@ class VariantBandit:
         self.update(variant_key, reward=r)
         return r
 
+    def predict(self, variant_keys: list[str]) -> list[dict]:
+        """Return posterior statistics for each variant_key without sampling.
+
+        Where `choose()` does Thompson sampling and returns ONE winner,
+        `predict()` returns the full ranked posterior for all variants so
+        the caller can show users "x:stat-led: 0.65 ± 0.12 (n=18)" before
+        committing LLM cost or queueing for HITL review.
+
+        This is the "JEPA-flavored" predictor layer added in v0.19.0
+        (per `~/Desktop/Interview-Prep/Projects/alex-brain/research/
+        2026-05-08-world-models-takeaway.md` — schema-over-pixels: surface
+        the structural prediction, don't bury it in opaque sampling).
+
+        Returns:
+            list of {variant_key, mean, std, ci95_low, ci95_high, n_pulls,
+                     alpha, beta}, sorted by mean descending.
+            Untrained arms (n_pulls=0) come back with mean=0.5 (uniform
+            prior) — useful UX cue for "we have no data on this variant".
+        """
+        if not variant_keys:
+            return []
+        for k in variant_keys:
+            self._ensure_arm(k)
+        with sqlite3.connect(self.db_path) as conn:
+            rows = {r[0]: (r[1], r[2], r[3]) for r in conn.execute(
+                "SELECT variant_key, alpha, beta, n_pulls FROM bandit_arm "
+                "WHERE variant_key IN ("
+                + ",".join("?" * len(variant_keys)) + ")",
+                variant_keys,
+            ).fetchall()}
+        out: list[dict] = []
+        for k in variant_keys:
+            a, b, n = rows.get(k, (1.0, 1.0, 0))
+            mean = a / (a + b)
+            denom = (a + b) ** 2 * (a + b + 1)
+            std = (a * b / denom) ** 0.5 if denom else 0.0
+            out.append({
+                "variant_key": k,
+                "mean": round(mean, 4),
+                "std": round(std, 4),
+                "ci95_low": round(max(0.0, mean - 1.96 * std), 4),
+                "ci95_high": round(min(1.0, mean + 1.96 * std), 4),
+                "n_pulls": n,
+                "alpha": a,
+                "beta": b,
+            })
+        out.sort(key=lambda d: d["mean"], reverse=True)
+        return out
+
+    def predict_top_k(self, variant_keys: list[str], k: int = 2) -> list[str]:
+        """Return the top-k variant_keys ranked by posterior mean.
+
+        Useful when the caller wants to LLM-generate the top k (vs all)
+        and save cost on the rest. Ties broken by lower variance (prefer
+        the more-tested variant when means are equal).
+        """
+        ranked = self.predict(variant_keys)
+        if not ranked:
+            return []
+        # Re-sort with std as tiebreaker (lower std wins on tie at same mean)
+        ranked.sort(key=lambda d: (-d["mean"], d["std"]))
+        return [d["variant_key"] for d in ranked[:k]]
+
     def stats(self) -> list[dict]:
         """Per-arm summary: alpha, beta, n_pulls, posterior mean."""
         with sqlite3.connect(self.db_path) as conn:

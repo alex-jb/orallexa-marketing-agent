@@ -341,6 +341,40 @@ def cmd_bandit(args) -> int:
         print(f"✓ updated {args.variant_key} with squashed reward={r:.3f} "
               f"(from raw engagement {args.engagement})")
         return 0
+    if args.action == "predict":
+        # JEPA-flavored predictor (v0.19.0). Lists posterior stats for
+        # candidate variants WITHOUT sampling — lets you see what the
+        # bandit would lean toward + how confident it is, before
+        # committing LLM cost. See alex-brain world-models research note.
+        from marketing_agent.types import Platform
+        plat = Platform(args.platform) if args.platform else None
+        # Pull all known arms for the platform (or all platforms if none).
+        all_stats = b.stats()
+        keys = [
+            s["variant_key"] for s in all_stats
+            if not plat or s["variant_key"].startswith(f"{plat.value}:")
+        ]
+        if not keys:
+            scope = f"platform={args.platform}" if args.platform else "any platform"
+            print(f"(no arms yet for {scope} — generate with --variants > 1 first)")
+            return 0
+        ranked = b.predict(keys)
+        scope_label = (f"━━━ {args.platform.upper()} prediction ━━━"
+                       if args.platform else "━━━ ALL ARMS prediction ━━━")
+        print(scope_label)
+        print(f"  {'variant':25s}  {'mean':>6s}  {'95% CI':>15s}  "
+              f"{'pulls':>5s}  flag")
+        for d in ranked:
+            ci = f"[{d['ci95_low']:.2f}, {d['ci95_high']:.2f}]"
+            flag = "🆕" if d["n_pulls"] == 0 else (
+                "⚠" if d["n_pulls"] < 3 else "")
+            print(f"  {d['variant_key']:25s}  {d['mean']:>6.3f}  {ci:>15s}  "
+                  f"{d['n_pulls']:>5d}  {flag}")
+        if args.top_k:
+            top = b.predict_top_k(keys, k=args.top_k)
+            print(f"\ntop-{args.top_k} (cost-saver — generate only these): "
+                  f"{', '.join(top)}")
+        return 0
     return 1
 
 
@@ -582,6 +616,22 @@ def main(argv: Optional[list[str]] = None) -> int:
                                 help="Update an arm from raw engagement count")
     bd_eng.add_argument("variant_key")
     bd_eng.add_argument("--engagement", type=float, required=True)
+    bd_pred = bd_sub.add_parser(
+        "predict",
+        help="(v0.19.0) Posterior stats for candidate variants — see what "
+             "the bandit would lean toward + how confident, BEFORE LLM cost. "
+             "JEPA-flavored predictor layer.",
+    )
+    bd_pred.add_argument(
+        "--platform", default=None,
+        choices=[p.value for p in Platform],
+        help="Filter to one platform. Default: all known arms.",
+    )
+    bd_pred.add_argument(
+        "--top-k", type=int, default=None,
+        help="Also print the top-k variant_keys (e.g. 'generate only these "
+             "to save LLM cost'). Tied means break on lower std.",
+    )
     bd.set_defaults(func=cmd_bandit)
 
     bt = sub.add_parser("best-time", help="Show optimal post time per platform")

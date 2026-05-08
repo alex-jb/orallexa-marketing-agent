@@ -2,6 +2,26 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.19.0] — 2026-05-08
+
+**JEPA-flavored predictor layer on the variant bandit.** Surface posterior predictions BEFORE LLM commit, so HITL reviewers can see "x:stat-led: 0.65 ± 0.12 (n=18)" instead of trusting opaque Thompson samples.
+
+### Why
+Direct response to the World Models research takeaway saved at `~/Desktop/Interview-Prep/Projects/alex-brain/research/2026-05-08-world-models-takeaway.md`. The video's central LeCun argument — generative models burn compute on pixels but miss structure; JEPA wins by predicting in abstract latent space — translates here as: don't bury the bandit's structural prediction inside `random.betavariate()` calls; surface it. The bandit already learns the schema; v0.19.0 makes the schema visible.
+
+### Added
+- **`VariantBandit.predict(variant_keys)`** — returns posterior stats `{variant_key, mean, std, ci95_low, ci95_high, n_pulls, alpha, beta}` for each candidate, sorted by mean desc. Untrained arms come back as `mean=0.5` (uniform prior) with `n_pulls=0` so the UX can flag them.
+- **`VariantBandit.predict_top_k(variant_keys, k=2)`** — top-k by posterior mean, ties broken by lower variance (prefer the more-tested variant when means equal). Lets the orchestrator generate only top-k variants instead of all → LLM cost saver.
+- **CLI: `marketing-agent bandit predict [--platform x] [--top-k 2]`** — readable table with mean / 95% CI / pull count / 🆕 (untrained) / ⚠ (low sample) flags. Shows what the bandit would lean toward + how confident, before any LLM call. Practical use: run before a launch to check whether the bandit has enough signal yet.
+- **9 new tests in `tests/test_bandit.py`** covering empty list, uniform prior on unknown arm, sort order, full payload, CI95 brackets, top-k correctness, std tiebreaker, default k=2, k > arm count.
+
+### Tests
+- 408 → **417 tests passing** (+9 predictor tests). ruff clean.
+
+### Not changed (yet) — deferred to v0.20+
+- `choose()` still uses Thompson sampling unchanged. v0.20 should expose a `predict_first` mode on the orchestrator that calls `predict_top_k` before generating, then samples among the top-k. That's the actual cost saver.
+- No context-aware bandit yet (single global posterior per variant_key). Audit's "JEPA upgrade #2" — condition on project category + stack detection — is a v0.20+ task.
+
 ## [0.18.6] — 2026-05-08
 
 **Fix mid-word truncation in render_reddit / render_linkedin / render_dev_to + bidirectional cross-link with VibeXForge production.**

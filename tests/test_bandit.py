@@ -110,3 +110,93 @@ def test_report_flags_low_sample_warning(bandit):
     rep = bandit.report(min_pulls=3)
     assert rep["x"]["winner"] == "x:emoji-led"
     assert rep["x"]["sample_size_warning"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# v0.19.0 — predict() / predict_top_k() (JEPA-flavored predictor layer).
+# Surface posterior stats to callers BEFORE LLM commit, instead of burying
+# them inside Thompson sampling. See alex-brain world-models research note.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_predict_empty_list_returns_empty(bandit):
+    assert bandit.predict([]) == []
+
+
+def test_predict_unknown_arm_uses_uniform_prior(bandit):
+    [d] = bandit.predict(["x:never-seen"])
+    assert d["mean"] == 0.5  # Beta(1,1) prior
+    assert d["n_pulls"] == 0
+    assert d["alpha"] == 1.0
+    assert d["beta"] == 1.0
+    assert 0.0 <= d["ci95_low"] <= d["mean"] <= d["ci95_high"] <= 1.0
+
+
+def test_predict_returns_sorted_by_mean_desc(bandit):
+    bandit.update("x:emoji-led", reward=0.9)
+    bandit.update("x:emoji-led", reward=0.9)
+    bandit.update("x:emoji-led", reward=0.9)
+    bandit.update("x:stat-led", reward=0.5)
+    bandit.update("x:question-led", reward=0.1)
+    bandit.update("x:question-led", reward=0.1)
+    out = bandit.predict([
+        "x:question-led", "x:emoji-led", "x:stat-led",
+    ])
+    means = [d["mean"] for d in out]
+    assert means == sorted(means, reverse=True)
+    assert out[0]["variant_key"] == "x:emoji-led"
+    assert out[-1]["variant_key"] == "x:question-led"
+
+
+def test_predict_includes_full_posterior_payload(bandit):
+    bandit.update("x:stat-led", reward=0.7)
+    [d] = bandit.predict(["x:stat-led"])
+    for key in ("variant_key", "mean", "std", "ci95_low", "ci95_high",
+                "n_pulls", "alpha", "beta"):
+        assert key in d, f"predict() output missing key {key!r}"
+    assert d["n_pulls"] == 1
+    assert d["mean"] > 0.5  # one positive reward shifts away from prior
+
+
+def test_predict_ci95_brackets_mean(bandit):
+    bandit.update("x:stat-led", reward=0.6)
+    bandit.update("x:stat-led", reward=0.6)
+    [d] = bandit.predict(["x:stat-led"])
+    assert d["ci95_low"] <= d["mean"] <= d["ci95_high"]
+    assert d["ci95_low"] >= 0.0
+    assert d["ci95_high"] <= 1.0
+
+
+def test_predict_top_k_returns_k_variants(bandit):
+    bandit.update("x:a", reward=0.9)
+    bandit.update("x:b", reward=0.5)
+    bandit.update("x:c", reward=0.1)
+    top2 = bandit.predict_top_k(["x:a", "x:b", "x:c"], k=2)
+    assert top2 == ["x:a", "x:b"]
+
+
+def test_predict_top_k_ties_break_on_lower_std(bandit):
+    """When two variants have equal mean, the more-tested one (lower std)
+    should win the tiebreak — preference for confidence over noise."""
+    # x:tested gets 4 pulls → narrow posterior at mean 0.5
+    bandit.update("x:tested", reward=0.5)
+    bandit.update("x:tested", reward=0.5)
+    bandit.update("x:tested", reward=0.5)
+    bandit.update("x:tested", reward=0.5)
+    # x:untested has 0 pulls → wide posterior at mean 0.5
+    [first] = bandit.predict_top_k(["x:tested", "x:untested"], k=1)
+    assert first == "x:tested"
+
+
+def test_predict_top_k_default_k_is_two(bandit):
+    bandit.update("x:a", reward=0.9)
+    bandit.update("x:b", reward=0.5)
+    bandit.update("x:c", reward=0.1)
+    out = bandit.predict_top_k(["x:a", "x:b", "x:c"])
+    assert len(out) == 2
+
+
+def test_predict_top_k_handles_k_greater_than_arms(bandit):
+    bandit.update("x:a", reward=0.5)
+    out = bandit.predict_top_k(["x:a"], k=10)
+    assert out == ["x:a"]
