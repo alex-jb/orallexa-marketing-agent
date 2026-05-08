@@ -19,6 +19,14 @@
 
 ---
 
+## 🚀 生产环境跑在 [vibexforge.com](https://vibexforge.com)
+
+[VibeXForge](https://vibexforge.com) 就是这个 agent 之上的发行放大器:贴上 AI 作品 URL → 10 秒生成 17 张平台原生帖子。vibexforge.com 上每张草稿都是这个 repo 公开的代码生成的(`marketing_agent/content/generator.py` 的 TypeScript port 在 [vibex/lib/draft-generator.ts](https://github.com/alex-jb/vibex/blob/master/lib/draft-generator.ts))。
+
+想要带 UI / HITL 编辑器 / 各平台 engagement 抓取的托管版?[去 VibeXForge](https://vibexforge.com/?ref=marketing-agent)。只想要 SDK 接进自己的 pipeline?继续往下读 —— `pip install orallexa-marketing-agent`。
+
+---
+
 ## 为什么做这个
 
 你做了个不错的 AI / OSS 项目，27 天后只有 28 个 star。你不缺产品，缺的是 distribution。你是 builder 不是 marketer，X 上 3 个粉丝，Twitter 没受众。
