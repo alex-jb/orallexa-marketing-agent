@@ -1,0 +1,75 @@
+name: security
+
+# Runs on every push + PR, plus a weekly Monday cron to catch deps that
+# acquired new CVEs since the last commit. Per the post-vibe-code audit
+# gate rule in alex-brain (2026-05-11).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Monday 8am UTC — catch newly-disclosed CVEs in pinned deps
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bandit:
+    name: SAST (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install "bandit[toml]==1.8.6"
+
+      - name: Run bandit — fail only on HIGH severity
+        # Initial rollout: only HIGH severity blocks merge. Tighten to
+        # `medium` once known false positives (B310 url-scheme on our
+        # HTTP scrapers, B608 SQL on parameterized internal queries) are
+        # either whitelisted via .bandit.yml or refactored.
+        run: bandit -r . --exclude ./tests,./examples,./scripts,./.venv,./build -lll
+
+  pip-audit:
+    name: Dependency CVE scan (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install "pip-audit==2.9.0"
+
+      - name: Install package + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: pip-audit (informational — surfaces findings, does not block)
+        continue-on-error: true
+        run: pip-audit --skip-editable
+
+  gitleaks:
+    name: Secret leak scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history — catches secrets in past commits
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # GITLEAKS_LICENSE not required for personal-account repos.
