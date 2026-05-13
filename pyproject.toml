@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orallexa-marketing-agent"
-version = "0.20.0"
-description = "AI marketing agent for OSS founders — auto-generate and distribute project content across X, Reddit, LinkedIn, and more. v0.20.0 wires JEPA-flavored bandit predictions into the generator: generate_variants() picks top-K predicted variants for HITL multi-pick."
+version = "0.21.0"
+description = "AI marketing agent for OSS founders — auto-generate and distribute project content across X, Reddit, LinkedIn, and more. v0.21.0 adds viral_patterns module — BuzzPlay 5-part recruit invite, negative-space positioning, wave-borrow narrative timing, casual_humanizer_zh, and lint_draft anti-AI-cringe linter."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}

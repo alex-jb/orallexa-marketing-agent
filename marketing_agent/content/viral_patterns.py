@@ -265,6 +265,169 @@ def render_wave_borrow_post(
 
 
 # ────────────────────────────────────────────────────────────────────
+# Pattern 4 — Lint draft for AI-cringe before publishing
+# ────────────────────────────────────────────────────────────────────
+
+# Vocabulary that signals "AI wrote this" or "corporate copywriter who
+# doesn't read what they ship." Mostly EN; the casual_humanizer_zh
+# already covers zh-side formality.
+_CRINGE_VOCAB_EN = {
+    # AI-tells
+    "delve": "look at / dig into",
+    "delves": "looks at / digs into",
+    "robust": "(too generic — pick a specific quality, or delete)",
+    "comprehensive": "(usually filler — what specifically?)",
+    "leverage": "use",
+    "leverages": "uses",
+    "leveraging": "using",
+    "synergy": "(corporate non-word — delete or rewrite)",
+    "synergies": "(corporate non-word — delete or rewrite)",
+    "unlock": "(over-used — try 'enable' or be specific)",
+    "unlocks": "(over-used — try 'enables' or be specific)",
+    "revolutionary": "(hype — show, don't claim)",
+    "game-changing": "(hype — show, don't claim)",
+    "paradigm shift": "(corporate hype — delete)",
+    "seamless": "(usually a lie — describe the actual UX)",
+    "seamlessly": "(usually a lie — describe the actual UX)",
+    "elevate": "(corporate — try 'improve' or be specific)",
+    "harness": "use",
+    "embark": "start",
+    "tapestry": "(metaphor inflation — delete)",
+    "vibrant": "(filler adjective — delete or specify)",
+    "intricate": "(filler — specific or delete)",
+    "myriad": "many / lots of",
+    "plethora": "many / lots of",
+    "underscore": "show / highlight",
+    "showcase": "show",
+    "foster": "build / grow",
+    "facilitate": "help / enable",
+    "navigate": "(corporate — try 'work through')",
+    "in today's fast-paced world": "(delete entirely)",
+    "in today's digital age": "(delete entirely)",
+    "in the realm of": "(delete entirely)",
+    "the landscape of": "(delete entirely)",
+}
+
+# Phrases that scream "AI/corporate launch post"
+_CRINGE_OPENERS = (
+    "we're excited to announce",
+    "we are excited to announce",
+    "thrilled to announce",
+    "happy to share",
+    "proud to introduce",
+    "delighted to share",
+    "without further ado",
+    "let me break this down",
+    "buckle up",
+    "here's the kicker",
+    "here's the thing",
+    "plot twist",
+    "the bottom line",
+    "make no mistake",
+    "i can't stress this enough",
+    "without a doubt",
+    "needless to say",
+)
+
+_TRIPLE_EXCLAM_RE = re.compile(r"!{3,}")
+
+
+def lint_draft(text: str, *, strictness: str = "normal") -> list[dict]:
+    """Scan a draft for AI-cringe vocab, corporate starters, and surface
+    issues. Deterministic — no LLM call.
+
+    Args:
+      text: the draft body to lint
+      strictness:
+        - "loose":  only errors (corporate openers, triple !!!, all-caps spam)
+        - "normal": errors + warnings on cringe vocab (default)
+        - "strict": normal + flag any of the writing-rules AI vocab list
+
+    Returns:
+      list of {"line_no": int, "severity": "error"|"warn",
+                "issue": str, "snippet": str, "suggestion": str | None}.
+      Empty list = draft is clean.
+    """
+    issues: list[dict] = []
+    lines = text.split("\n")
+
+    for i, line in enumerate(lines, start=1):
+        low = line.lower()
+        stripped = line.strip()
+
+        # ── ERROR — triple exclamation
+        if _TRIPLE_EXCLAM_RE.search(line):
+            issues.append({
+                "line_no": i, "severity": "error",
+                "issue": "triple exclamation marks",
+                "snippet": stripped,
+                "suggestion": "Use one or zero. Shouting reads as desperate.",
+            })
+
+        # ── ERROR — corporate launch openers
+        for opener in _CRINGE_OPENERS:
+            if opener in low:
+                issues.append({
+                    "line_no": i, "severity": "error",
+                    "issue": f"corporate launch opener: '{opener}'",
+                    "snippet": stripped,
+                    "suggestion": "Lead with what the user can do, not your excitement.",
+                })
+
+        # ── ERROR — emoji wall (≥ 5 emoji on one line)
+        if _count_emoji(line) >= 5:
+            issues.append({
+                "line_no": i, "severity": "error",
+                "issue": "emoji wall (5+ emoji on one line)",
+                "snippet": stripped,
+                "suggestion": "1-2 emoji per line max. Save them for emphasis.",
+            })
+
+        # ── WARN — all-caps shouting
+        words = [w for w in re.findall(r"[A-Za-z]+", line) if len(w) >= 3]
+        caps_words = [w for w in words if w.isupper()]
+        if len(words) >= 4 and len(caps_words) / max(len(words), 1) > 0.5:
+            issues.append({
+                "line_no": i, "severity": "warn",
+                "issue": "majority-caps line",
+                "snippet": stripped,
+                "suggestion": "All-caps is shouting. Use sparingly for emphasis only.",
+            })
+
+        # ── WARN/STRICT — cringe vocab
+        if strictness != "loose":
+            for word, fix in _CRINGE_VOCAB_EN.items():
+                # Match whole word case-insensitively
+                pat = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
+                if pat.search(line):
+                    issues.append({
+                        "line_no": i, "severity": "warn",
+                        "issue": f"cringe vocab: '{word}'",
+                        "snippet": stripped,
+                        "suggestion": f"Try: {fix}",
+                    })
+
+    return issues
+
+
+def _count_emoji(s: str) -> int:
+    """Crude emoji counter — counts chars above BMP that are likely emoji.
+
+    Good enough for lint heuristic. Misses some emoji in BMP (like ⭐)
+    but those are rarely overused so the false-negative is acceptable.
+    """
+    count = 0
+    for ch in s:
+        cp = ord(ch)
+        # Emoji blocks (rough):
+        if (0x1F300 <= cp <= 0x1FAFF  # misc symbols & pictographs, supplemental, etc
+                or 0x2600 <= cp <= 0x27BF  # misc symbols + dingbats
+                or 0x1F600 <= cp <= 0x1F64F):  # emoticons
+            count += 1
+    return count
+
+
+# ────────────────────────────────────────────────────────────────────
 # Casual humanizer — inject "啊 / 嘛 / 哈哈" into formal Chinese drafts
 # ────────────────────────────────────────────────────────────────────
 

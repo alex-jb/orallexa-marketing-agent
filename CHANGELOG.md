@@ -2,6 +2,48 @@
 
 All notable changes to this project. Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.21.0] — 2026-05-13
+
+**New `marketing_agent.content.viral_patterns` module** — 5 reusable
+launch-content functions distilled from a 2026-05-13 BuzzPlay (buzzplay.app)
+study + the Anthropic Claude→Blender/Adobe/Canva connector wave (2026-04-28).
+
+The pattern: indie-launch copy mostly fails by being either too corporate
+("we're excited to announce") or too AI-generic ("leverage our robust
+platform"). This module gives you 5 deterministic helpers to skip those
+traps and produce posts that read like a real founder.
+
+### Added
+- **`negative_space_positioning(name, not_categories, is_verb_noun, *, language="zh"|"en")`**
+  — generates one-line "X — 不是A,不是B,是C" / "X — not A, not B — C" positioning.
+- **`render_recruit_invite(project, *, user_action_verbs, validation_hook, extra_tags, target, language)`**
+  — generates BuzzPlay-style 5-part early-stage recruit-invite for xiaohongshu / twitter / showhn.
+  Language switches automatically with target; explicit override available.
+- **`render_wave_borrow_post(project, *, wave_actor, wave_action, your_angle, target, language)`**
+  — Cluely-playbook "own narrative timing": launch on top of a bigger
+  announcement rather than burning cold first-impression budget.
+- **`casual_humanizer_zh(text, *, seed, aggressiveness, inject_interjection)`**
+  — surgical injection of 啊/嘛/哈哈 into formal Chinese drafts. Max 1
+  joyful interjection per draft. Calibrated 0.4 default; >0.6 starts
+  sounding cringe. Deterministic via seed.
+- **`lint_draft(text, *, strictness="loose"|"normal"|"strict")`**
+  — deterministic (no LLM call) lint for AI-cringe vocab (delve / robust /
+  leverage / seamless / etc), corporate openers ("we're excited to
+  announce", "thrilled to share"), triple exclamation, all-caps shouting,
+  emoji walls (5+ per line). Returns list of `{line_no, severity, issue, snippet, suggestion}`.
+
+### Research note
+- `alex-brain/research/2026-05-13-buzzplay-study.md` — full extraction
+  of the 5 patterns from the source 小红书 post + product landing.
+
+### Fixed
+- `marketing_agent/__init__.py` `__version__` was diverged at 0.18.6
+  (stale since v0.19.0 / 0.20.0 releases). Now synced to 0.21.0.
+
+### Tests
+- 33 new tests in `tests/test_viral_patterns.py` (negative-space / recruit
+  invite / wave-borrow / lint-draft / casual-humanizer). Full suite green.
+
 ## [0.20.0] — 2026-05-08
 
 **Wires `bandit.predict_top_k()` through the actual generation path.** v0.19.0 added the predictor API (read-only); v0.20.0 makes the orchestrator use it.

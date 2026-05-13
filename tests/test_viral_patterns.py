@@ -5,6 +5,7 @@ import pytest
 
 from marketing_agent.content.viral_patterns import (
     casual_humanizer_zh,
+    lint_draft,
     negative_space_positioning,
     render_recruit_invite,
     render_wave_borrow_post,
@@ -205,6 +206,66 @@ class TestWaveBorrow:
         )
         # Should not have trailing url
         assert post.body.count("\n\n") == 2  # exactly: actor, angle, project
+
+
+class TestLintDraft:
+    def test_clean_draft_zero_issues(self):
+        text = "We built a thing. It's small. Try it: https://x.com"
+        assert lint_draft(text) == []
+
+    def test_corporate_opener_flagged(self):
+        text = "We're excited to announce our new product."
+        issues = lint_draft(text)
+        assert any("corporate launch opener" in i["issue"] for i in issues)
+        assert any(i["severity"] == "error" for i in issues)
+
+    def test_triple_exclamation_flagged(self):
+        text = "This is amazing!!!"
+        issues = lint_draft(text)
+        assert any("triple exclamation" in i["issue"] for i in issues)
+        assert issues[0]["severity"] == "error"
+
+    def test_cringe_vocab_default_normal(self):
+        text = "We leverage our robust platform to unlock seamless workflows."
+        issues = lint_draft(text)
+        # 'leverage', 'robust', 'unlock', 'seamless' all in vocab list
+        flagged_words = {i["issue"] for i in issues}
+        assert any("leverage" in i for i in flagged_words)
+        assert any("robust" in i for i in flagged_words)
+        assert any("unlock" in i for i in flagged_words)
+        assert any("seamless" in i for i in flagged_words)
+
+    def test_loose_skips_vocab_warns(self):
+        text = "We leverage our robust platform."
+        # Loose only catches errors (no errors here), so 0 issues
+        assert lint_draft(text, strictness="loose") == []
+
+    def test_emoji_wall_flagged(self):
+        text = "🚀 🔥 ✨ 💯 🎉 launched!"
+        issues = lint_draft(text)
+        assert any("emoji wall" in i["issue"] for i in issues)
+
+    def test_emoji_under_threshold_ok(self):
+        text = "Drop a 👀 below or DM me 🙏"
+        issues = lint_draft(text)
+        assert not any("emoji wall" in i["issue"] for i in issues)
+
+    def test_all_caps_warning(self):
+        text = "BUY NOW LIMITED TIME ONLY"
+        issues = lint_draft(text)
+        assert any("majority-caps" in i["issue"] for i in issues)
+
+    def test_line_no_reported(self):
+        text = "Normal line\nWe're excited to announce something\nAnother normal"
+        issues = lint_draft(text)
+        opener_issues = [i for i in issues if "corporate launch opener" in i["issue"]]
+        assert opener_issues
+        assert opener_issues[0]["line_no"] == 2
+
+    def test_chinese_text_passes_vocab_filter(self):
+        # Chinese drafts should pass the EN-vocab linter unscathed
+        text = "你说一句话,世界长出来一点东西。"
+        assert lint_draft(text) == []
 
 
 class TestCasualHumanizer:
