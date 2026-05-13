@@ -7,6 +7,7 @@ from marketing_agent.content.viral_patterns import (
     casual_humanizer_zh,
     negative_space_positioning,
     render_recruit_invite,
+    render_wave_borrow_post,
 )
 from marketing_agent.types import Platform, Project
 
@@ -158,6 +159,53 @@ class TestRecruitInvite:
 # ────────────────────────────────────────────────────────────────────
 # Casual humanizer
 # ────────────────────────────────────────────────────────────────────
+
+class TestWaveBorrow:
+    def test_en_twitter_default(self):
+        p = Project(name="SFOS", tagline="11 MIT agents for the operational stack",
+                     github_url="https://github.com/alex-jb/solo-founder-os")
+        post = render_wave_borrow_post(
+            p,
+            wave_actor="Anthropic",
+            wave_action="shipped Claude connectors to 8 creative tools last week",
+            your_angle="I built the same shape — for solo founders' operational stack.",
+        )
+        assert post.platform == Platform.X
+        assert "Anthropic shipped Claude connectors" in post.body
+        assert "solo founders' operational stack" in post.body
+        assert "SFOS — 11 MIT agents" in post.body
+        # github_url tail
+        assert "github.com/alex-jb/solo-founder-os" in post.body
+
+    def test_zh_xiaohongshu(self):
+        p = Project(name="念念", tagline="你说一句话,世界长出来一点东西",
+                     website_url="https://niannian.app")
+        post = render_wave_borrow_post(
+            p,
+            wave_actor="Anthropic",
+            wave_action="上周把 Claude 接进了 8 个创意工具",
+            your_angle="我做了同样的事 — 给情绪型 user 的语音日记。",
+            target="xiaohongshu",
+        )
+        assert post.platform == Platform.XIAOHONGSHU
+        assert "Anthropic 上周把" in post.body
+        assert "niannian.app" in post.body
+
+    def test_falls_back_to_website_if_no_github(self):
+        p = Project(name="X", tagline="t", website_url="https://x.com")
+        post = render_wave_borrow_post(
+            p, wave_actor="A", wave_action="did Y", your_angle="we do Z",
+        )
+        assert "https://x.com" in post.body
+
+    def test_no_url_section_if_neither_set(self):
+        p = Project(name="X", tagline="t")
+        post = render_wave_borrow_post(
+            p, wave_actor="A", wave_action="did Y", your_angle="we do Z",
+        )
+        # Should not have trailing url
+        assert post.body.count("\n\n") == 2  # exactly: actor, angle, project
+
 
 class TestCasualHumanizer:
     def test_empty_passes_through(self):

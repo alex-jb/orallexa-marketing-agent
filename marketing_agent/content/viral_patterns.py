@@ -185,6 +185,86 @@ def render_recruit_invite(
 
 
 # ────────────────────────────────────────────────────────────────────
+# Pattern 3 — Wave-borrow (ride a bigger announcement)
+# ────────────────────────────────────────────────────────────────────
+
+def render_wave_borrow_post(
+    project: Project,
+    *,
+    wave_actor: str,
+    wave_action: str,
+    your_angle: str,
+    target: str = "twitter",
+    language: str | None = None,
+) -> Post:
+    """Render a 'borrow a bigger wave' launch post.
+
+    When a major player (Anthropic, OpenAI, Apple, etc) ships news that
+    validates your space, you can launch on top of their announcement
+    rather than burning your own first-impression budget cold. This
+    template generates the framing.
+
+    Pattern (Cluely-playbook "own narrative timing"):
+      1. State what THEY did, specifically + recently
+      2. State what YOU do that's the same shape, different layer
+      3. Bridge: "Same idea, different X"
+      4. Concrete proof you've actually shipped (one number, one fact)
+      5. CTA
+
+    Args:
+      project: name + tagline of your thing
+      wave_actor: who shipped the headline news ("Anthropic", "OpenAI")
+      wave_action: what they did, in one specific clause
+        Good: "shipped Claude connectors to 8 creative tools last week"
+        Bad:  "is doing exciting things in AI"
+      your_angle: 1 sentence on what YOU do that rhymes — must include
+        the *different layer / different user* part
+        Good: "I built the same thing for solo founders' operational stack"
+        Bad:  "We're also doing AI agents"
+      target: twitter / showhn / xiaohongshu
+      language: zh / en (default from target)
+
+    Returns:
+      Post — typically used as the FIRST tweet/post of a thread, with
+      follow-ups carrying the concrete proof.
+    """
+    if language is None:
+        language = "zh" if target == "xiaohongshu" else "en"
+
+    if language == "zh":
+        body = (
+            f"{wave_actor} {wave_action}。\n\n"
+            f"{your_angle}\n\n"
+            f"{project.name} — {project.tagline.rstrip('。.')}。"
+        )
+    else:
+        body = (
+            f"{wave_actor} {wave_action}.\n\n"
+            f"{your_angle}\n\n"
+            f"{project.name} — {project.tagline.rstrip('。.')}."
+        )
+
+    if project.github_url:
+        body += f"\n\n{project.github_url}"
+    elif project.website_url:
+        body += f"\n\n{project.website_url}"
+
+    platform = {
+        "xiaohongshu": Platform.XIAOHONGSHU,
+        "twitter": Platform.X,
+        "showhn": Platform.HACKER_NEWS,
+    }.get(target, Platform.X)
+
+    return Post(
+        platform=platform,
+        body=body,
+        title=f"{project.name} · wave-borrow ({wave_actor})",
+        target=target,
+        char_count=len(body),
+    )
+
+
+# ────────────────────────────────────────────────────────────────────
 # Casual humanizer — inject "啊 / 嘛 / 哈哈" into formal Chinese drafts
 # ────────────────────────────────────────────────────────────────────
 
