@@ -100,6 +100,10 @@ class TestRecruitInvite:
         )
         assert "DM me" in post.body
         assert post.platform == Platform.X
+        # Twitter defaults language=en — body should NOT contain Chinese
+        # stage-honesty boilerplate
+        assert "目前产品还在早期阶段" not in post.body
+        assert "Product is still very early" in post.body
 
     def test_showhn_cta_voice(self):
         post = render_recruit_invite(
@@ -110,6 +114,30 @@ class TestRecruitInvite:
         )
         assert "Feedback would mean a lot" in post.body
         assert post.platform == Platform.HACKER_NEWS
+
+    def test_en_uses_english_tags_by_default(self):
+        post = render_recruit_invite(
+            _project(),
+            user_action_verbs=["say it", "see it bloom"],
+            validation_hook="Test.",
+            target="twitter",
+        )
+        # Default tags switch to indiehackers / buildinpublic / showhn /
+        # earlyaccess (vs zh 独立开发 / 产品内测 / AI产品 / 创业)
+        assert "#indiehackers" in post.body
+        assert "#独立开发" not in post.body
+
+    def test_language_override_zh_target_en(self):
+        # Bilingual brand might want xiaohongshu visual + en body
+        post = render_recruit_invite(
+            _project(),
+            user_action_verbs=["say", "listen"],
+            validation_hook="Test.",
+            target="xiaohongshu",
+            language="en",
+        )
+        assert "your friend can" in post.body
+        assert post.platform == Platform.XIAOHONGSHU
 
     def test_extra_tags_appear_and_dedupe(self):
         post = render_recruit_invite(

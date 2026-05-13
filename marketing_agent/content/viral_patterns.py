@@ -89,11 +89,11 @@ def render_recruit_invite(
     validation_hook: str,
     extra_tags: list[str] | None = None,
     target: str = "xiaohongshu",
+    language: str | None = None,
 ) -> Post:
     """Render a BuzzPlay-style early-stage recruit-invite post.
 
-    The 5 parts are stitched together with line breaks for 小红书
-    readability. Tags go at the end.
+    The 5 parts are stitched together with line breaks. Tags go at the end.
 
     Args:
       project: name + tagline used in problem framing
@@ -103,46 +103,60 @@ def render_recruit_invite(
         Good: ["玩", "选择", "看结果"]
         Bad:  ["LLM 推理", "向量检索", "结构化输出"]
       validation_hook: a specific anecdote of validation. Should include
-        a concrete number/name AND a casual particle ("哈哈哈" / "啊").
-        Good: "做了个互动梗图发朋友圈 评论区直接炸了哈哈哈"
-        Bad:  "We've validated strong PMF signals"
+        a concrete number/name AND a casual particle ("哈哈哈" / "honestly").
       extra_tags: project-specific tags to mix with the 5 default
         categories (brand / category / community / lifecycle / niche).
-      target: "xiaohongshu" (default), "twitter", or "showhn". Adjusts
-        tag formatting + CTA voice.
+      target: "xiaohongshu" (default), "twitter", or "showhn".
+      language: "zh" or "en". If None, defaults from target:
+        xiaohongshu → zh, twitter/showhn → en. The template body
+        (problem framing, stage honesty, CTA, default tags) switches
+        with this — passing en-only `user_action_verbs` for an
+        xiaohongshu target with `language="en"` is valid for
+        bilingual brands like 念念 launching to global+CN.
 
     Returns:
       Post — platform set to whichever target was specified.
     """
-    verbs_block = "、".join(user_action_verbs)
+    if language is None:
+        language = "zh" if target == "xiaohongshu" else "en"
 
-    # [1] Problem framing — uses tagline + the user-experience verbs
-    framing = (
-        f"{project.tagline.rstrip('。.')}—— 朋友可以 "
-        f"{verbs_block}。"
-    )
+    verbs_block = "、".join(user_action_verbs) if language == "zh" else ", ".join(user_action_verbs)
 
-    # [2] Validation hook — feed in as-is; humanizer-friendly
+    # [1] Problem framing
+    if language == "zh":
+        framing = f"{project.tagline.rstrip('。.')}—— 朋友可以 {verbs_block}。"
+    else:
+        framing = f"{project.tagline.rstrip('。.')} — your friend can {verbs_block}."
+
+    # [2] Validation hook — feed in as-is
     validation = validation_hook.strip()
 
     # [3] Stage honesty
-    stage = "目前产品还在早期阶段 我们想多认识一些真实的用户 欢迎来体验、吐槽、提建议 🙏"
+    if language == "zh":
+        stage = "目前产品还在早期阶段 我们想多认识一些真实的用户 欢迎来体验、吐槽、提建议 🙏"
+    else:
+        stage = "Product is still very early. We're looking for real users to try, complain, suggest 🙏 Every reply gets read."
 
-    # [4] CTA double-track
+    # [4] CTA — varies by both target AND language
     if target == "showhn":
         cta = (
             "Feedback would mean a lot — drop a thought below, "
             "or DM me directly if you want to chat about what you'd build with this. 👇"
         )
     elif target == "twitter":
-        cta = "Drop a 👀 below or DM me if you want early access. Every reply is read."
-    else:  # xiaohongshu
+        cta = "Drop a 👀 below or DM me if you want early access. Every reply is read. 👇"
+    elif language == "zh":
         cta = "感兴趣的小伙伴评论区扣「1」或者直接来聊聊你想用 AI 做什么有趣的东西 👇"
+    else:
+        cta = "Drop a comment or DM me — tell me what you'd want to build with this. 👇"
 
     # [5] Hashtag chain (5 categories: brand · category · community · lifecycle · niche)
     base_tags = [f"#{project.name}"]
     base_tags += [f"#{t}" for t in (extra_tags or [])]
-    base_tags += ["#独立开发", "#产品内测", "#AI产品", "#创业"]
+    if language == "zh":
+        base_tags += ["#独立开发", "#产品内测", "#AI产品", "#创业"]
+    else:
+        base_tags += ["#indiehackers", "#buildinpublic", "#showhn", "#earlyaccess"]
     # Deduplicate while preserving order
     seen: set[str] = set()
     deduped = []
