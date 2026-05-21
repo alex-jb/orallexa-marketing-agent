@@ -555,3 +555,158 @@ def _humanize_line(
     if pos < len(line):
         out_parts.append(line[pos:])
     return "".join(out_parts)
+
+
+# ────────────────────────────────────────────────────────────────────
+# Pattern 5 — Meme-borrow (stamp product into a viral structural template)
+# ────────────────────────────────────────────────────────────────────
+
+# Meme templates we've seen succeed in 2026. Each entry has en + zh
+# variants and a required-slot tuple validated before rendering.
+# When you spot a new meme working in the wild, add a row here with a
+# comment on what made it travel.
+MEME_TEMPLATES: dict[str, dict[str, object]] = {
+    # "X but for Y" — 7-word positioning shortcut. Travels because the
+    # reader already understands {known_thing}, so you spend zero
+    # explanation budget on the metaphor.
+    # Example: "Cursor but for Python notebooks" (Marimo, 2025-Q3).
+    "x_but_for_y": {
+        "en": "{product} — {known_thing} but for {target_user}.",
+        "zh": "{product} — 给 {target_user} 的 {known_thing}。",
+        "required_slots": ("known_thing", "target_user"),
+    },
+    # "Stop X. Use Y." — polarizing anti-positioning. Use only when
+    # there's a clear category leader to define against. Sounds petty
+    # when there isn't.
+    "stop_use": {
+        "en": "Stop {popular_action}.\n\n{product} — {tagline}",
+        "zh": "别再 {popular_action} 了。\n\n{product} — {tagline}",
+        "required_slots": ("popular_action",),
+    },
+    # "Day N of building" — buildinpublic ritual. Compounds because
+    # readers expect a follow-up. Use only for early-stage launches;
+    # don't fake the day number — it reads as performative when the
+    # work isn't real.
+    "day_n_building": {
+        "en": "Day {day_n} of building {product}:\n\n{today_in_one_line}",
+        "zh": "Day {day_n} 做 {product}:\n\n今天{today_in_one_line}",
+        "required_slots": ("day_n", "today_in_one_line"),
+    },
+    # "POV: you're X and Y happens" — TikTok-native frame, validates
+    # the reader by naming them. Works on small screens.
+    # Example: "POV: you're a solo founder and your 10 agents just
+    # shipped their weekly retro."
+    "pov_persona": {
+        "en": "POV: you're {persona} and {trigger_moment}.\n\n{product} — {tagline}",
+        "zh": "POV: 你是 {persona},{trigger_moment}。\n\n{product} — {tagline}",
+        "required_slots": ("persona", "trigger_moment"),
+    },
+    # "X in N tweets / lines" — thread starter that sets expectations.
+    # Pick honest small numbers (3-5). Promising 10 and delivering 7
+    # is worse than promising 3 and delivering 3.
+    "explained_in_n": {
+        "en": "{product}, in {n} lines:\n\n1. {beat_1}\n2. {beat_2}\n3. {beat_3}",
+        "zh": "{product},{n} 句话讲完:\n\n1. {beat_1}\n2. {beat_2}\n3. {beat_3}",
+        "required_slots": ("n", "beat_1", "beat_2", "beat_3"),
+    },
+}
+
+
+def render_meme_borrow(
+    project: Project,
+    *,
+    template_key: str | None = None,
+    custom_template: str | None = None,
+    slots: dict[str, object] | None = None,
+    target: str = "twitter",
+    language: str | None = None,
+) -> Post:
+    """Stamp project info into a known-viral meme structure.
+
+    The function is intentionally MECHANICAL — substring substitution,
+    not creative writing. The creativity lives in the template
+    selection and the slot values you provide. If the meme doesn't
+    work, that's a content problem, not a tool problem.
+
+    Use a `template_key` from `MEME_TEMPLATES` OR pass `custom_template`
+    with your own `{slot}` placeholders. Exactly one must be provided.
+
+    Args:
+      project: name + tagline. `{product}` and `{tagline}` slots are
+        always populated from this; you don't pass them in `slots`.
+      template_key: one of `MEME_TEMPLATES` keys. Use this when you've
+        spotted a template succeeding in the wild and want to reuse it.
+      custom_template: arbitrary template string with `{slot}` placeholders.
+        Use this for one-off / personal memes that aren't reusable. When
+        `custom_template` is given, all referenced slots must be in `slots`
+        (or be `product` / `tagline`, which are auto-filled).
+      slots: dict of slot-name → value. Validated against the template's
+        `required_slots` if `template_key` is used.
+      target: twitter / xiaohongshu / showhn / linkedin / reddit.
+      language: zh / en (defaults from target). For named templates,
+        determines which language variant is rendered. For
+        `custom_template`, only used to pick the platform enum.
+
+    Returns:
+      Post — typically used STANDALONE, not as the start of a thread.
+      Meme posts work because they're terminal; following them with a
+      long thread kills the punchline.
+
+    Raises:
+      ValueError: if neither/both of `template_key`/`custom_template`
+        are provided, if `template_key` is unknown, or if a required
+        slot is missing.
+    """
+    if (template_key is None) == (custom_template is None):
+        raise ValueError(
+            "Provide exactly one of template_key or custom_template"
+        )
+
+    if language is None:
+        language = "zh" if target in ("xiaohongshu", "zhihu") else "en"
+
+    slot_dict: dict[str, object] = dict(slots or {})
+    # Auto-inject product/tagline so callers don't have to repeat themselves.
+    slot_dict.setdefault("product", project.name)
+    slot_dict.setdefault("tagline", project.tagline.rstrip("。.") + ".")
+
+    if template_key is not None:
+        if template_key not in MEME_TEMPLATES:
+            raise ValueError(
+                f"Unknown template_key {template_key!r}. "
+                f"Available: {sorted(MEME_TEMPLATES)}"
+            )
+        meme = MEME_TEMPLATES[template_key]
+        required = meme["required_slots"]  # type: ignore[index]
+        missing = [s for s in required if s not in slot_dict]
+        if missing:
+            raise ValueError(
+                f"Template {template_key!r} missing required slot(s): {missing}"
+            )
+        template = meme[language]  # type: ignore[index]
+    else:
+        template = custom_template
+    assert isinstance(template, str)
+
+    try:
+        body = template.format(**slot_dict)
+    except KeyError as e:
+        raise ValueError(
+            f"Template references {{{e.args[0]}}} but slot was not provided"
+        ) from e
+
+    platform = {
+        "xiaohongshu": Platform.XIAOHONGSHU,
+        "twitter": Platform.X,
+        "showhn": Platform.HACKER_NEWS,
+        "linkedin": Platform.LINKEDIN,
+        "reddit": Platform.REDDIT,
+    }.get(target, Platform.X)
+
+    return Post(
+        platform=platform,
+        body=body,
+        title=f"{project.name} · meme-borrow ({template_key or 'custom'})",
+        target=target,
+        char_count=len(body),
+    )

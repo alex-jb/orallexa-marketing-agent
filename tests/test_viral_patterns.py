@@ -4,9 +4,11 @@ from __future__ import annotations
 import pytest
 
 from marketing_agent.content.viral_patterns import (
+    MEME_TEMPLATES,
     casual_humanizer_zh,
     lint_draft,
     negative_space_positioning,
+    render_meme_borrow,
     render_recruit_invite,
     render_wave_borrow_post,
 )
@@ -317,3 +319,180 @@ class TestCasualHumanizer:
         out = casual_humanizer_zh(text, seed=1, aggressiveness=1.0)
         # The existing 嘛 should NOT cause a second particle inserted
         assert out.count("嘛") == 1
+
+
+# ────────────────────────────────────────────────────────────────────
+# Meme-borrow (render_meme_borrow)
+# ────────────────────────────────────────────────────────────────────
+
+
+class TestMemeBorrowTemplates:
+    """Catalog-level invariants for MEME_TEMPLATES."""
+
+    def test_all_templates_have_en_and_zh(self):
+        for key, meme in MEME_TEMPLATES.items():
+            assert "en" in meme, f"{key} missing en"
+            assert "zh" in meme, f"{key} missing zh"
+            assert "required_slots" in meme, f"{key} missing required_slots"
+
+    def test_required_slots_present_in_both_languages(self):
+        """If a template requires `{persona}`, both en + zh must reference it."""
+        for key, meme in MEME_TEMPLATES.items():
+            for lang in ("en", "zh"):
+                tmpl = meme[lang]
+                for slot in meme["required_slots"]:
+                    assert (
+                        "{" + slot + "}" in tmpl
+                    ), f"{key}.{lang} doesn't reference {{{slot}}}"
+
+    def test_product_and_tagline_auto_referenced(self):
+        """{product} and/or {tagline} should be in most templates."""
+        with_product = sum(
+            1 for meme in MEME_TEMPLATES.values()
+            if "{product}" in meme["en"] or "{product}" in meme["zh"]
+        )
+        assert with_product >= 3  # most templates use the brand
+
+
+class TestMemeBorrowRender:
+    def _proj(self) -> Project:
+        return Project(name="SFOS", tagline="run a one-person company on YOUR keys")
+
+    def test_x_but_for_y_en(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="x_but_for_y",
+            slots={"known_thing": "LangGraph", "target_user": "solo founders"},
+            target="twitter",
+            language="en",
+        )
+        assert post.body == "SFOS — LangGraph but for solo founders."
+        assert post.platform == Platform.X
+
+    def test_x_but_for_y_zh(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="x_but_for_y",
+            slots={"known_thing": "LangGraph", "target_user": "一人公司"},
+            target="xiaohongshu",
+        )
+        # Default language for xiaohongshu is zh
+        assert "给 一人公司 的 LangGraph" in post.body
+        assert post.platform == Platform.XIAOHONGSHU
+
+    def test_pov_persona_inherits_tagline(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="pov_persona",
+            slots={
+                "persona": "a solo founder",
+                "trigger_moment": "your 11 agents just shipped retro",
+            },
+            target="twitter",
+            language="en",
+        )
+        # auto-filled tagline lands in body
+        assert "run a one-person company on YOUR keys" in post.body
+        assert "POV: you're a solo founder" in post.body
+
+    def test_day_n_building(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="day_n_building",
+            slots={"day_n": 14, "today_in_one_line": "L4 evolver shipped its first PR"},
+            target="twitter",
+            language="en",
+        )
+        assert "Day 14 of building SFOS" in post.body
+        assert "L4 evolver" in post.body
+
+    def test_explained_in_n(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="explained_in_n",
+            slots={
+                "n": 3,
+                "beat_1": "pip install per agent",
+                "beat_2": "cron runs Sunday 8am",
+                "beat_3": "you approve PRs",
+            },
+            target="twitter",
+            language="en",
+        )
+        assert "1. pip install per agent" in post.body
+        assert "3. you approve PRs" in post.body
+
+    def test_stop_use_zh(self):
+        post = render_meme_borrow(
+            self._proj(),
+            template_key="stop_use",
+            slots={"popular_action": "把 key 给 SaaS"},
+            target="xiaohongshu",
+        )
+        assert post.body.startswith("别再 把 key 给 SaaS 了。")
+        assert "SFOS" in post.body
+
+    def test_custom_template(self):
+        post = render_meme_borrow(
+            self._proj(),
+            custom_template="{product} > {competitor}. End of thread.",
+            slots={"competitor": "Cofounder 2"},
+            target="twitter",
+            language="en",
+        )
+        assert post.body == "SFOS > Cofounder 2. End of thread."
+
+    def test_rejects_both_template_key_and_custom(self):
+        with pytest.raises(ValueError, match="exactly one"):
+            render_meme_borrow(
+                self._proj(),
+                template_key="x_but_for_y",
+                custom_template="hi {product}",
+                slots={"known_thing": "X", "target_user": "Y"},
+            )
+
+    def test_rejects_neither_template_key_nor_custom(self):
+        with pytest.raises(ValueError, match="exactly one"):
+            render_meme_borrow(self._proj(), slots={})
+
+    def test_rejects_unknown_template_key(self):
+        with pytest.raises(ValueError, match="Unknown template_key"):
+            render_meme_borrow(
+                self._proj(),
+                template_key="not_a_real_template",
+                slots={},
+            )
+
+    def test_rejects_missing_required_slot(self):
+        with pytest.raises(ValueError, match="missing required slot"):
+            render_meme_borrow(
+                self._proj(),
+                template_key="x_but_for_y",
+                slots={"known_thing": "LangGraph"},  # missing target_user
+            )
+
+    def test_custom_template_missing_slot_raises(self):
+        with pytest.raises(ValueError, match="not provided"):
+            render_meme_borrow(
+                self._proj(),
+                custom_template="{product} for {audience}.",
+                slots={},  # missing audience
+            )
+
+    def test_platform_routing(self):
+        proj = self._proj()
+        for target, expected in [
+            ("twitter", Platform.X),
+            ("xiaohongshu", Platform.XIAOHONGSHU),
+            ("showhn", Platform.HACKER_NEWS),
+            ("linkedin", Platform.LINKEDIN),
+            ("reddit", Platform.REDDIT),
+        ]:
+            post = render_meme_borrow(
+                proj,
+                template_key="x_but_for_y",
+                slots={"known_thing": "X", "target_user": "Y"},
+                target=target,
+                language="en",
+            )
+            assert post.platform == expected
