@@ -118,7 +118,7 @@ def collect_pending() -> list[dict]:
     return rows
 
 
-def filter_due(rows: list[dict], platform: str | None) -> list[dict]:
+def filter_due(rows: list[dict], platform: str | None, project: str | None = None) -> list[dict]:
     """Return due drafts sorted by recency-of-schedule (today first, then yesterday, ...).
 
     Why reversed: when 5 weeks of drafts pile up, the freshest material
@@ -130,6 +130,9 @@ def filter_due(rows: list[dict], platform: str | None) -> list[dict]:
     if platform:
         plat_norm = platform.lower().replace("-", "_")
         out = [r for r in out if r["platform"].lower().replace("-", "_") == plat_norm]
+    if project:
+        proj_norm = project.lower()
+        out = [r for r in out if proj_norm in r["project"].lower()]
     out.sort(key=lambda r: r["scheduled_for"], reverse=True)
     return out
 
@@ -273,6 +276,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--limit", type=int, default=3, help="Max drafts to handle in this run (default 3)")
     ap.add_argument("--platform", default=None, help="Filter by platform (x, reddit, hacker_news, etc.)")
+    ap.add_argument("--project", default=None, help="Filter by project name substring (e.g. 'launchkit', 'funeral')")
     ap.add_argument("--dry-run", action="store_true", help="Show what would happen, no clipboard/open")
     ap.add_argument("--audit", action="store_true", help="Print full queue audit + exit")
     ap.add_argument("--archive-stale", type=int, metavar="DAYS",
@@ -294,11 +298,13 @@ def main():
         print(f"\n=== Archived {moved} stale drafts. Pending remaining: {len(all_pending) - moved} ===")
         return
 
-    due = filter_due(all_pending, args.platform)
+    due = filter_due(all_pending, args.platform, args.project)
     if not due:
         print(f"No due drafts (total pending: {len(all_pending)}).")
         if args.platform:
             print(f"  (filtered by platform={args.platform})")
+        if args.project:
+            print(f"  (filtered by project={args.project})")
         return
 
     # Diversify: prefer different platforms in same session, sort by scheduled
