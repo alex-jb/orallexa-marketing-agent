@@ -1,0 +1,10 @@
+# Coze plugin runtime — kept minimal so Vercel cold start stays <2s.
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9,<3
+anthropic>=0.40
+python-dotenv>=1.0
+
+# Wrap the existing package. On Vercel we install from PyPI to avoid
+# cold-start pip clone time; locally use `pip install -e ..`.
+orallexa-marketing-agent>=0.21.0

@@ -1,0 +1,273 @@
+openapi: 3.1.0
+info:
+  title: marketing-agent 多平台文案生成器
+  summary: 12 平台 AI 文案一键生成
+  description: |
+    一次输入项目信息,自动生成 12 个平台的原生风格文案。
+
+    **支持平台**:X(Twitter) / Reddit / Hacker News / Dev.to / LinkedIn /
+    Bluesky / Threads / Product Hunt / 小红书 / 即刻 / 知乎 / B站。
+
+    **底层模型**:Anthropic Claude Sonnet 4.6 + Thompson sampling 多臂老虎机
+    自动 A/B 选择文案变体 + prompt caching(降本 70-80%)。
+
+    **来源**:开源项目 [marketing-agent](https://github.com/alex-jb/orallexa-marketing-agent)
+    by [Solo Founder OS](https://github.com/alex-jb)。本插件是其官方 Coze 包装。
+
+    **价格**:免费档每天 5 次,Pro ¥19/月 不限量。
+  version: 0.1.0
+  termsOfService: https://github.com/alex-jb/orallexa-marketing-agent/blob/main/LICENSE
+  contact:
+    name: alex-jb (Solo Founder OS)
+    url: https://github.com/alex-jb/orallexa-marketing-agent
+    email: xji1@mail.yu.edu
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://marketing-agent-coze.vercel.app
+    description: Production (Vercel)
+  - url: http://127.0.0.1:8000
+    description: Local development
+
+tags:
+  - name: AI
+    description: AI-powered content generation
+  - name: 营销
+    description: 多平台内容营销
+  - name: 内容创作
+    description: 自动写作 / 文案撰写
+
+security:
+  - bearerAuth: []
+
+paths:
+  /generate:
+    post:
+      tags: [AI, 营销, 内容创作]
+      operationId: generate_drafts
+      summary: 生成 12 平台文案 / Generate multi-platform drafts
+      description: |
+        输入项目名 + 简介 + URL → 返回每个平台的原生风格文案。
+
+        - 默认生成全部 12 平台。指定 `platforms` 字段可定向。
+        - 单次请求最多 12 个平台,超时上限 60s。
+        - 响应大小上限 50KB(超出自动截断)。
+        - 速率限制:免费 5 次/分钟,Pro(token 前缀 `pro_`)50 次/分钟。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRequest"
+            examples:
+              vibex_zh:
+                summary: VibeXForge 中文版
+                value:
+                  project_url: https://vibexforge.com
+                  project_name: VibeXForge
+                  project_description: 中国独立 AI 创作者的多渠道曝光放大器,把一个 demo 自动分发到 12 个平台。
+                  platforms: [x, 小红书, 即刻, 知乎, b站]
+                  language: zh
+              orallexa_en:
+                summary: Orallexa English
+                value:
+                  project_url: https://github.com/alex-jb/orallexa-marketing-agent
+                  project_name: marketing-agent
+                  project_description: Open-source marketing automation agent for solo founders — 12-platform native posts, Thompson sampling, prompt caching.
+                  platforms: [x, reddit, hacker_news, dev_to]
+                  language: en
+      responses:
+        "200":
+          description: 成功 / OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResponse"
+        "400":
+          description: 请求参数错误 / Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 未授权 / Unauthorized — missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: 速率限制 / Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: 秒后重试 / seconds to wait
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 服务器错误 / Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+    get:
+      tags: [AI]
+      operationId: health_check
+      summary: 健康检查 / Health probe
+      description: Coze 健康检查端点,无需鉴权。
+      security: []
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  anthropic_key_present: { type: boolean }
+                  tokens_configured: { type: integer }
+                  version: { type: string, example: "0.1.0" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        Coze 插件 token。请向插件作者申请 token,放入 `Authorization: Bearer <token>` 请求头。
+        Pro tier token 以 `pro_` 前缀标识,享受 50 次/分钟速率。
+
+  schemas:
+    GenerateRequest:
+      type: object
+      required: [project_url, project_name, project_description]
+      properties:
+        project_url:
+          type: string
+          format: uri
+          description: 要推广的 AI 项目 URL / Project URL to promote
+          example: https://github.com/alex-jb/orallexa-marketing-agent
+        project_name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: 项目名 / Project name
+          example: marketing-agent
+        project_description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+          description: 1-2 句话简介 / 1-2 sentence pitch
+          example: 12 平台 AI 自动写文案,给独立开发者用的营销代理。
+        platforms:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            enum:
+              - x
+              - reddit
+              - linkedin
+              - hacker_news
+              - dev_to
+              - bluesky
+              - mastodon
+              - threads
+              - substack
+              - xiaohongshu
+              - 小红书
+              - zhihu
+              - 知乎
+              - product_hunt
+              - 即刻
+              - b站
+          description: 平台列表,留空表示全部 / Empty = all 12
+          example: [x, 小红书, 即刻]
+        language:
+          type: string
+          enum: [zh, en, both]
+          default: zh
+          description: 输出语言 / Output language
+        tags:
+          type: array
+          maxItems: 20
+          items: { type: string }
+          description: 可选标签 / Optional tags
+          example: [agents, marketing, oss]
+
+    Draft:
+      type: object
+      required: [platform, body, char_count]
+      properties:
+        platform:
+          type: string
+          description: 平台名 / Platform identifier
+          example: x
+        title:
+          type: string
+          nullable: true
+          description: 标题(Reddit/HN/Substack 用)/ Title for Reddit/HN/Substack
+        body:
+          type: string
+          description: 正文 / Post body
+        char_count:
+          type: integer
+          description: 字符数 / Character count
+        variant_key:
+          type: string
+          nullable: true
+          description: A/B 变体标识 / Bandit variant key (e.g. "x:emoji-led")
+
+    GenerateResponse:
+      type: object
+      required: [drafts, generation_cost_usd, model, cache_hit_ratio]
+      properties:
+        drafts:
+          type: array
+          items: { $ref: "#/components/schemas/Draft" }
+        generation_cost_usd:
+          type: number
+          format: float
+          description: 预估生成成本 USD / Estimated generation cost
+          example: 0.015
+        model:
+          type: string
+          description: 主模型 / Primary model identifier
+          example: claude-sonnet-4-6
+        cache_hit_ratio:
+          type: number
+          format: float
+          description: 预估 prompt cache 命中率 / Estimated cache hit ratio
+          example: 0.7
+        notes:
+          type: array
+          items: { type: string }
+          description: 降级/警告说明 / Degradation notes
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: object
+          properties:
+            error:
+              type: string
+              example: rate_limit
+            message_zh:
+              type: string
+              example: 超过速率限制(5 次/分钟),请 30 秒后重试。
+            message_en:
+              type: string
+              example: Rate limit exceeded (5/min). Retry in 30s.
+            retry_after_seconds:
+              type: integer
+              nullable: true

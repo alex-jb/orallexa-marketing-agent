@@ -1,0 +1,135 @@
+{
+  "schema_version": "v1",
+  "name": "marketing-agent 多平台文案生成器",
+  "name_en": "marketing-agent multi-platform copywriter",
+  "slug": "marketing-agent",
+  "version": "0.1.0",
+  "tagline": "一键生成 12 个平台的原生风格文案,给独立开发者用的营销代理。",
+  "tagline_en": "One-click 12-platform native copy for indie founders.",
+  "description_one_line": "粘贴项目 URL → 12 个平台原生文案,3 秒生成,免费 5 次/天。",
+  "description_five_line": [
+    "marketing-agent 是开源 AI 营销代理,基于 Claude Sonnet 4.6。",
+    "支持 12 平台:X / Reddit / HN / Dev.to / LinkedIn / Bluesky / Threads / Product Hunt / 小红书 / 即刻 / 知乎 / B站。",
+    "内置 Thompson sampling 多臂老虎机自动 A/B 选文案变体 + prompt caching 降本 70-80%。",
+    "免费档 5 次/天,Pro ¥19/月 不限量(由 Coze 平台代收)。",
+    "源代码完全开源:github.com/alex-jb/orallexa-marketing-agent。"
+  ],
+  "description_one_line_en": "Paste project URL → 12 platform-native posts in 3s. Free: 5/day.",
+  "description_five_line_en": [
+    "marketing-agent is an open-source AI marketing agent built on Claude Sonnet 4.6.",
+    "Generates native-style posts for 12 platforms: X / Reddit / HN / Dev.to / LinkedIn / Bluesky / Threads / Product Hunt / Xiaohongshu / Jike / Zhihu / Bilibili.",
+    "Built-in Thompson sampling for variant A/B + prompt caching cuts cost 70-80%.",
+    "Free tier: 5 generations/day. Pro: ¥19/month unlimited (billed by Coze).",
+    "Fully open-source: github.com/alex-jb/orallexa-marketing-agent."
+  ],
+  "category": "营销 / 内容创作",
+  "category_en": "Marketing / Content Creation",
+  "tags": [
+    "AI 营销",
+    "内容生成",
+    "多平台分发",
+    "独立开发者",
+    "build in public",
+    "marketing automation",
+    "copywriting"
+  ],
+  "openapi_spec_path": "openapi.yaml",
+  "server_url": "https://marketing-agent-coze.vercel.app",
+  "auth": {
+    "type": "bearer",
+    "token_acquisition_url": "https://github.com/alex-jb/orallexa-marketing-agent/blob/main/coze_plugin/SUBMISSION.md#getting-a-token",
+    "note_zh": "用户在 Coze 后台申请插件 → 自动下发 token。Pro tier token 以 `pro_` 前缀标识。",
+    "note_en": "Users request the plugin in Coze console; token issued automatically. Pro tokens prefixed `pro_`."
+  },
+  "pricing": {
+    "free_tier": {
+      "name": "免费档 / Free",
+      "limits_zh": "5 次/天",
+      "limits_en": "5 generations/day",
+      "price_cny": 0,
+      "price_usd": 0,
+      "rate_limit_per_minute": 5
+    },
+    "pro": {
+      "name": "Pro",
+      "limits_zh": "不限量",
+      "limits_en": "Unlimited",
+      "price_cny": 19,
+      "price_usd": null,
+      "rate_limit_per_minute": 50,
+      "billing_cycle": "monthly",
+      "billed_by": "coze"
+    },
+    "revenue_share_note": "Coze 平台抽成 30%。作者实际到手 ¥13.3/单/月 / Coze takes 30%; author receives ¥13.3/sub/mo."
+  },
+  "screenshots": [
+    {
+      "path": "screenshots/01-input-form.png",
+      "caption_zh": "输入项目 URL + 简介",
+      "caption_en": "Input project URL + description"
+    },
+    {
+      "path": "screenshots/02-twelve-platform-output.png",
+      "caption_zh": "12 平台原生文案一次生成",
+      "caption_en": "12 native posts in one call"
+    },
+    {
+      "path": "screenshots/03-cost-cache-metrics.png",
+      "caption_zh": "成本 + cache 命中率透明展示",
+      "caption_en": "Cost + cache-hit metrics shown to user"
+    }
+  ],
+  "example_inputs": [
+    {
+      "label_zh": "VibeXForge — 独立 AI 创作者放大器",
+      "label_en": "VibeXForge — indie AI creator amplifier",
+      "project_url": "https://vibexforge.com",
+      "project_name": "VibeXForge",
+      "project_description": "中国独立 AI 创作者的多渠道曝光放大器,把一个 demo 自动分发到 12 个平台。",
+      "platforms": ["x", "小红书", "即刻", "知乎", "b站"],
+      "language": "zh"
+    },
+    {
+      "label_zh": "marketing-agent 自身",
+      "label_en": "marketing-agent itself (dogfood)",
+      "project_url": "https://github.com/alex-jb/orallexa-marketing-agent",
+      "project_name": "marketing-agent",
+      "project_description": "开源 AI 营销代理:12 平台原生文案 + Thompson sampling A/B + prompt caching 降本 70-80%。",
+      "platforms": ["x", "reddit", "hacker_news", "dev_to", "linkedin"],
+      "language": "both"
+    },
+    {
+      "label_zh": "Orallexa — 量化交易代理",
+      "label_en": "Orallexa — quant trading agent",
+      "project_url": "https://github.com/alex-jb/orallexa",
+      "project_name": "Orallexa",
+      "project_description": "Self-tuning multi-agent quant trading system with 5-persona ensemble and shrinkage layer.",
+      "platforms": ["x", "linkedin", "hacker_news", "knol", "知乎"],
+      "language": "en"
+    }
+  ],
+  "author": {
+    "name": "alex-jb (Solo Founder OS)",
+    "handle": "alex-jb",
+    "email": "xji1@mail.yu.edu",
+    "github": "https://github.com/alex-jb",
+    "stack_homepage": "https://github.com/alex-jb"
+  },
+  "homepage": "https://github.com/alex-jb/orallexa-marketing-agent",
+  "source_repo": "https://github.com/alex-jb/orallexa-marketing-agent",
+  "license": "MIT",
+  "support_email": "xji1@mail.yu.edu",
+  "support_url_zh": "https://github.com/alex-jb/orallexa-marketing-agent/issues",
+  "supported_languages": ["zh-CN", "en-US"],
+  "policy": {
+    "data_retention": "请求/响应不持久化;仅在内存中做速率限制窗口(60s)。/ Requests not persisted; only 60s in-memory rate limit window.",
+    "data_retention_en": "Inputs/outputs are not stored. Only a 60s in-memory rate-limit window keeps token timestamps.",
+    "pii": "插件不收集 PII。/ No PII collected.",
+    "third_party_models": "Anthropic Claude Sonnet 4.6 (LLM 调用计费由插件作者承担)。"
+  },
+  "sunset_clause": {
+    "review_date": "2026-09-06",
+    "criterion": "若 2026-09-06 前安装数 < 100,插件作者将主动下架,以保持 Solo Founder OS 维护焦点。",
+    "criterion_en": "If installs < 100 by 2026-09-06, the author will voluntarily delist to preserve Solo Founder OS focus."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": { "runtime": "python3.11", "maxLambdaSize": "50mb" }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "api/index.py" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "ANTHROPIC_API_KEY": "@anthropic_api_key",
+    "COZE_PLUGIN_TOKENS": "@coze_plugin_tokens",
+    "SUPABASE_URL": "@supabase_url",
+    "SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "regions": ["sfo1"],
+  "github": {
+    "silent": true,
+    "autoAlias": false
+  },
+  "_comment_env": [
+    "Set the four secrets BEFORE first deploy:",
+    "  vercel env add ANTHROPIC_API_KEY production",
+    "  vercel env add COZE_PLUGIN_TOKENS production",
+    "  vercel env add SUPABASE_URL production         # placeholder, v0 doesn't use",
+    "  vercel env add SUPABASE_ANON_KEY production    # placeholder, v0 doesn't use",
+    "COZE_PLUGIN_TOKENS format: comma-separated, e.g. 'free_t1,free_t2,pro_user1,pro_user2'.",
+    "Pro tier identified by `pro_` prefix → 50 req/min vs free 5 req/min."
+  ],
+  "_comment_domain": [
+    "After first successful deploy:",
+    "  vercel domains add marketing-agent-coze.vercel.app",
+    "  vercel alias <deployment-url> marketing-agent-coze.vercel.app",
+    "This is the URL Coze.cn will hit. Update openapi.yaml `servers[0].url` if you change it."
+  ]
+}
