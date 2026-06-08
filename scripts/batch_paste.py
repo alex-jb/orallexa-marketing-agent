@@ -33,7 +33,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -268,7 +267,7 @@ def interactive_paste(rows: list[dict], dry_run: bool) -> dict:
         url_after = input("\n  After posting, paste the post URL (or just enter): ").strip()
         record_posted(draft, url_after or None)
         posted += 1
-        print(f"  ✓ Recorded to post_history + moved to posted/")
+        print("  ✓ Recorded to post_history + moved to posted/")
     return {"posted": posted, "skipped": skipped, "rejected": rejected}
 
 
@@ -331,7 +330,7 @@ def main():
             break
 
     summary = interactive_paste(diversified, args.dry_run)
-    print(f"\n=== Summary ===")
+    print("\n=== Summary ===")
     print(f"  posted:   {summary['posted']}")
     print(f"  skipped:  {summary['skipped']}")
     print(f"  rejected: {summary['rejected']}")
