@@ -401,7 +401,11 @@ def _system_for(platform: Platform, *,
     base = (
         "You are writing on behalf of an indie OSS developer who is building "
         "in public. Voice: technical, honest, no marketing fluff, no hype "
-        "words like 'revolutionary' or 'cutting-edge'. Show, don't tell."
+        "words like 'revolutionary' or 'cutting-edge'. Show, don't tell. "
+        "2026-06-08: any numeric metric (stars, MRR, signups, tests, etc) "
+        "must cite source via [src:TAG] format — e.g. '745+ tests [src:pytest]' "
+        "or '$5K MRR [src:stripe]'. Cohere Command A+ grounding pattern. "
+        "Reduces hallucination; readers can verify."
     )
     extras = {
         Platform.X: (
