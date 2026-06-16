@@ -15,6 +15,7 @@ Designed for both interactive use and cron / GitHub Actions invocation.
 from __future__ import annotations
 import argparse
 import sys
+from pathlib import Path
 from typing import Optional
 
 from marketing_agent import (
@@ -426,6 +427,45 @@ def cmd_engage(args) -> int:
     return 0
 
 
+def cmd_xhs_paste(args) -> int:
+    """One-shot 小红书 笔记 paste-ready workflow."""
+    from marketing_agent.platforms.xiaohongshu import XiaohongshuAdapter
+    from marketing_agent.types import Post, Platform
+
+    if args.body:
+        body = args.body
+    elif args.body_file:
+        body = Path(args.body_file).read_text(encoding="utf-8")
+    else:
+        body = sys.stdin.read()
+
+    if not body.strip():
+        print("ERROR: --body / --body-file / stdin all empty", file=sys.stderr)
+        return 2
+
+    post = Post(
+        platform=Platform.XIAOHONGSHU,
+        title=args.title,
+        body=body.strip(),
+    )
+    adapter = XiaohongshuAdapter()
+    result = adapter.paste_ready(
+        post,
+        project_name=args.name,
+        open_browser=not args.no_browser,
+    )
+
+    print(f"📋 Clipboard: {'✅ copied' if result['clipboard_copied'] else '❌ failed'} "
+          f"({result['payload_chars']} chars)")
+    print(f"🌐 Preview:   {result['html_path']}")
+    if result['preview_opened']:
+        print(f"             ↑ auto-opened in browser")
+    print(f"🏷️  Tags:      {' '.join(result['tags'])}")
+    print()
+    print("Next: 手机端长按粘贴到 小红书 APP 笔记编辑器,记得勾 AI 工具辅助声明")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="marketing_agent",
@@ -659,6 +699,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     e = sub.add_parser("engage", help="Pull current engagement metrics for a tweet")
     e.add_argument("--post-id", required=True)
     e.set_defaults(func=cmd_engage)
+
+    xhs = sub.add_parser(
+        "xhs-paste",
+        help="Render 小红书 笔记 + tags + clipboard copy + browser preview (manual-paste workflow)",
+    )
+    xhs.add_argument("--name", required=True, help="Project name")
+    xhs.add_argument("--title", required=True, help="≤20-char 笔记 title")
+    xhs.add_argument("--body", default=None,
+                       help="Body text. If omitted, reads from --body-file or stdin.")
+    xhs.add_argument("--body-file", default=None,
+                       help="Path to text file containing the body")
+    xhs.add_argument("--no-browser", action="store_true",
+                       help="Don't auto-open the HTML preview")
+    xhs.set_defaults(func=cmd_xhs_paste)
 
     args = parser.parse_args(argv)
     return args.func(args)
